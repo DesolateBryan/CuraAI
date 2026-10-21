@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MockChart – Epic-style Test EHR</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5f8;--card:#fff;--tx:#1b2430;--mu:#5d6b7c;--bd:#d9e0e8;--ac:#1a6bb5;--hd:#0d4f8b;--hdt:#fff;--bub:#eaf1f9;--bubd:#1a6bb5;--hl:#fff3c4;--bad:#b3261e;--sel:#e3eefa}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12171d;--card:#1b232c;--tx:#e6ebf0;--mu:#9aa7b5;--bd:#2f3b47;--ac:#5aa6ea;--hd:#0b3558;--bub:#25303c;--bubd:#2d6fb0;--hl:#4a4217;--bad:#ff8a80;--sel:#223446}}
+:root[data-theme="dark"]{--bg:#12171d;--card:#1b232c;--tx:#e6ebf0;--mu:#9aa7b5;--bd:#2f3b47;--ac:#5aa6ea;--hd:#0b3558;--bub:#25303c;--bubd:#2d6fb0;--hl:#4a4217;--bad:#ff8a80;--sel:#223446}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--hd);color:#fff;padding:8px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header b{font-size:16px}header .sp{flex:1}
+.warn{background:#7a1f1f;color:#fff;font-size:12px;padding:3px 10px;border-radius:10px}
+button{font:inherit;cursor:pointer;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:6px;padding:5px 10px}
+button.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:calc(100vh - 46px)}
+aside{border-right:1px solid var(--bd);background:var(--card)}
+aside h4{margin:0;padding:10px 12px;font-size:12px;text-transform:uppercase;color:var(--mu);letter-spacing:.05em}
+.pt{padding:10px 12px;border-top:1px solid var(--bd);cursor:pointer;display:flex;justify-content:space-between;gap:6px}
+.pt.on{background:var(--sel);box-shadow:inset 3px 0 var(--ac)}.pt small{color:var(--mu);display:block}
+.badge{background:var(--bad);color:#fff;border-radius:10px;padding:0 7px;height:18px;font-size:12px;align-self:center}
+main{padding:12px;min-width:0}
+.ban{background:var(--card);border:1px solid var(--bd);border-left:4px solid var(--ac);border-radius:6px;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px 22px}
+.ban h2{margin:0;font-size:18px;width:100%}.ban span{color:var(--mu)}.ban b{color:var(--tx)}.alg{color:var(--bad)}
+nav{display:flex;gap:4px;margin:10px 0;flex-wrap:wrap}nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:6px;margin-bottom:12px;overflow:hidden}
+.card h3{margin:0;padding:8px 12px;font-size:13px;background:var(--bub);border-bottom:1px solid var(--bd)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{text-align:left;padding:6px 12px;border-bottom:1px solid var(--bd);vertical-align:top}th{color:var(--mu);font-weight:600;font-size:12px}
+tr.hl td{background:var(--hl)}.flag{color:var(--bad);font-weight:700}.mu{color:var(--mu)}
+.opt{display:flex;gap:14px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.thread{padding:12px;display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto}
+.m{max-width:78%;padding:8px 11px;border-radius:12px;background:var(--bub);align-self:flex-start;white-space:pre-wrap}
+.m.d{align-self:flex-end;background:var(--bubd);color:#fff}.m small{display:block;opacity:.75;font-size:11px;margin-top:3px}
+.tag{font-size:10px;border:1px solid currentColor;border-radius:8px;padding:0 5px;margin-left:4px}
+.comp{display:flex;gap:8px;padding:10px;border-top:1px solid var(--bd)}
+.comp textarea{flex:1;font:inherit;padding:8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);resize:vertical;min-height:44px}
+.dev{font-size:12px;color:var(--mu);padding:8px 12px;border-bottom:1px solid var(--bd)}
+pre{margin:0;padding:12px;overflow:auto;max-height:65vh;font-size:12px}
+@media(max-width:720px){.app{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--bd)}.m{max-width:92%}}
+.urg{background:#b3261e;color:#fff;padding:8px 12px;border-radius:6px;margin-top:8px;font-weight:600}.urgtag{background:var(--bad);color:#fff;border-radius:4px;font-size:10px;padding:0 5px;display:inline-block;margin-top:2px}.sev-Major{color:var(--bad);font-weight:700}.sev-Moderate{color:#b26a00;font-weight:700}input.q{font:inherit;padding:6px 8px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);flex:1;min-width:200px}
+
+body{font:13px/1.4 "Segoe UI",Tahoma,Arial,sans-serif}
+header{background:linear-gradient(#245f94,#143a5e);padding:4px 10px;font-size:12px;border-bottom:2px solid #e8890c}
+header b{font-size:15px;letter-spacing:.02em}
+aside h4{background:var(--bub);color:var(--ac);font-size:11px;border-bottom:1px solid var(--bd)}
+.pt{padding:7px 10px}.pt.on{box-shadow:inset 4px 0 #e8890c}
+.ban{border-left:0;border-top:3px solid #245f94;border-radius:0;padding:6px 10px;background:var(--card)}
+.ban h2{font-size:16px;color:var(--ac)}
+nav{gap:0;border-bottom:1px solid var(--bd);margin:8px 0 10px}
+nav button{border:0;border-radius:0;background:transparent;padding:7px 14px;border-bottom:3px solid transparent;color:var(--mu)}
+nav button.on{background:var(--card);color:var(--ac);border-bottom-color:#e8890c;font-weight:600}
+.card{border-radius:0}.card h3{background:var(--bub);color:var(--ac);cursor:pointer;font-size:12.5px;padding:5px 10px;user-select:none}
+.card h3::before{content:"\25BE  "}.card.col h3::before{content:"\25B8  "}.card.col>:not(h3){display:none}
+th{background:var(--bg);text-transform:uppercase;font-size:11px;letter-spacing:.03em}
+td,th{padding:4px 10px}.flag{color:var(--bad)}
+.m{border-radius:4px}
+</style></head>
+<body>
+<header><b>MockChart</b><span>Epic-style test EHR · Hyperspace mock</span><span class="warn">SYNTHETIC DATA – NO REAL PHI</span><span class="sp"></span>
+<span id="who">Dr. Sam Whitfield, MD</span><button id="reset">Reset test data</button></header>
+<div class="app"><aside><h4>In Basket · Patients</h4><div id="list"></div></aside><main id="main"></main></div>
+<script>
+const TODAY='2026-10-16';
+const P=[
+{id:'p1',name:'Ellison, Margaret R.',dob:'1959-03-14',age:67,sex:'F',mrn:'4821307',allergies:'Penicillin (rash)',pcp:'Dr. Sam Whitfield',onset:'2026-10-09',missing:[],
+problems:[['Essential hypertension','I10'],['Type 2 diabetes mellitus','E11.9'],['Hyperlipidemia','E78.5']],
+meds:[['Lisinopril','20 mg PO daily','2025-02-10','2026-09-22','Dose increased: home BP log elevated','Dr. S. Whitfield'],
+['Lisinopril','40 mg PO daily','2026-09-22',null,'Increased from 20 mg','Dr. S. Whitfield'],
+['Metformin','1000 mg PO BID','2024-06-03',null,'','Dr. S. Whitfield'],
+['Atorvastatin','40 mg PO nightly','2025-02-10',null,'','Dr. S. Whitfield']],
+labs:[['2026-09-22','Hemoglobin A1c','7.4 %','4.0–5.6','H','Quest Diagnostics'],['2026-09-22','Potassium','4.6 mmol/L','3.5–5.1','','Quest Diagnostics'],['2026-09-22','Creatinine','0.92 mg/dL','0.60–1.10','','Quest Diagnostics'],['2026-07-14','LDL cholesterol','88 mg/dL','<100','','Quest Diagnostics']],
+visits:[['2026-09-29','Ophthalmology','Dr. L. Okafor','Diabetic eye exam. No retinopathy. Return 12 months.'],['2026-09-22','Office visit – Primary Care','Dr. S. Whitfield','BP 148/92, home log elevated. Increase lisinopril to 40 mg daily. Recheck BMP in 2 weeks.'],['2026-06-10','Cardiology','Dr. P. Anand','Stable HTN. Continue current regimen. Echo normal.']],
+msgs:[['2026-10-16T07:42:00','p',"Hi Dr. Whitfield, I've had a dry, tickly cough that started around October 9th. It was mild at first but it's getting worse, especially at night. No fever. Should I be worried?"]],
+reply:{onset:"It started October 9th, so about a week ago.",trend:"It's definitely getting worse. It keeps me up at night now.",meds:"Just my usual: lisinopril (the higher dose since last month), metformin and atorvastatin. Nothing new or over the counter.",appt:"Yes, I can come in. Any morning next week works.",def:"No fever or shortness of breath, just the dry cough. Anything else you need?"}},
+{id:'p2',name:'Whitaker, Darnell J.',dob:'1981-07-22',age:45,sex:'M',mrn:'5130942',allergies:'No known drug allergies',pcp:'Dr. Sam Whitfield',onset:'2026-10-05',missing:['onset','trend'],
+problems:[['Generalized anxiety disorder','F41.1'],['Gastro-esophageal reflux disease','K21.9'],['Lumbar radiculopathy','M54.16']],
+meds:[['Sertraline','50 mg PO daily','2025-11-04','2026-10-01','Partial response; increased','Dr. M. Castellano'],['Sertraline','100 mg PO daily','2026-10-01',null,'Increased from 50 mg','Dr. M. Castellano'],['Omeprazole','20 mg PO daily','2024-03-18',null,'','Dr. S. Whitfield'],['Cyclobenzaprine','10 mg PO TID PRN spasm','2026-09-28',null,'Lumbar flare','Dr. K. Brandt'],['Ibuprofen','600 mg PO q8h PRN pain','2026-09-28',null,'Take with food','Dr. K. Brandt']],
+labs:[['2026-10-08','Sodium','134 mmol/L','135–145','L','Quest Diagnostics'],['2026-09-14','Sodium','139 mmol/L','135–145','','Quest Diagnostics'],['2026-09-14','Creatinine','1.0 mg/dL','0.7–1.3','','Quest Diagnostics']],
+visits:[['2026-10-01','Psychiatry','Dr. M. Castellano','GAD, partial response to sertraline 50 mg. Increase to 100 mg daily. Follow up in 4 weeks.'],['2026-09-28','Orthopedics','Dr. K. Brandt','Lumbar radiculopathy flare. Start cyclobenzaprine 10 mg TID PRN and ibuprofen 600 mg PRN. PT referral placed.']],
+msgs:[['2026-10-16T08:15:00','p',"I've been feeling dizzy and kind of nauseous lately. Can you tell me what's going on?"]],
+reply:{onset:"I think it started around October 5th, a few days after my back appointment.",trend:"About the same most days, maybe a little worse in the mornings.",meds:"Sertraline, omeprazole, and the muscle relaxer and ibuprofen when my back flares.",appt:"I can come in Monday or Tuesday afternoon.",def:"The nausea comes and goes. The dizziness is mostly when I stand up."}},
+{id:'p3',name:'Raman, Priya S.',dob:'1992-01-09',age:34,sex:'F',mrn:'5309176',allergies:'Sulfa drugs (hives)',pcp:'Dr. Sam Whitfield',onset:'2026-10-09',missing:['trend'],
+problems:[['Hypothyroidism','E03.9'],['Asthma, mild persistent','J45.30'],['Iron deficiency anemia','D50.9']],
+meds:[['Levothyroxine','75 mcg PO daily','2023-05-12','2026-09-18','TSH elevated; increased','Dr. R. Lindqvist'],['Levothyroxine','88 mcg PO daily','2026-09-18',null,'Increased from 75 mcg','Dr. R. Lindqvist'],['Albuterol HFA','90 mcg, 2 puffs q4–6h PRN','2022-09-01',null,'','Dr. S. Whitfield'],['Fluticasone HFA','110 mcg, 2 puffs BID','2024-01-20',null,'','Dr. S. Whitfield'],['Ferrous sulfate','325 mg PO daily','2026-09-02',null,'Separate from levothyroxine by 4 h','Dr. S. Whitfield']],
+labs:[['2026-09-15','TSH','8.2 mIU/L','0.4–4.0','H','LabCorp'],['2026-09-15','Free T4','0.7 ng/dL','0.8–1.8','L','LabCorp'],['2026-09-02','Hemoglobin','10.9 g/dL','12.0–15.5','L','LabCorp'],['2026-09-02','Ferritin','9 ng/mL','15–150','L','LabCorp']],
+visits:[['2026-09-18','Endocrinology','Dr. R. Lindqvist','TSH 8.2, free T4 low. Increase levothyroxine 75 to 88 mcg daily. Recheck TSH in 6–8 weeks.'],['2026-09-02','Office visit – Primary Care','Dr. S. Whitfield','Fatigue. Labs show iron deficiency anemia. Start ferrous sulfate 325 mg daily.']],
+msgs:[['2026-10-16T09:03:00','p',"My heart has been racing and I feel shaky since last Friday. It comes and goes. Is this serious?"]],
+reply:{onset:"Last Friday, October 9th.",trend:"It's getting a bit worse. Episodes are more frequent now, maybe 3–4 times a day.",meds:"Levothyroxine (the new higher dose), iron pills and my inhalers. No new caffeine or supplements.",appt:"Yes, I can come in Thursday or Friday.",def:"No chest pain, but I get lightheaded when it happens."}},
+{id:'p4',name:'Castillo, Mateo A.',dob:'2019-04-02',age:7,sex:'M',mrn:'6042851',allergies:'No known drug allergies',pcp:'Dr. Sam Whitfield',onset:'2026-10-14',missing:['trend'],urgent:false,
+problems:[['Asthma, mild intermittent','J45.20'],['Seasonal allergic rhinitis','J30.2']],
+meds:[['Albuterol HFA','90 mcg, 2 puffs q4h PRN wheeze','2023-11-10',null,'','Dr. S. Whitfield'],['Cetirizine','5 mg PO daily, seasonal','2025-03-01',null,'','Dr. S. Whitfield']],
+labs:[['2026-09-20','Peak flow','210 L/min','>80% personal best','','Office spirometry']],
+visits:[['2026-09-20','Office visit – Primary Care','Dr. S. Whitfield','Well child visit. Asthma well controlled, using albuterol <1x/week. Continue current plan.']],
+msgs:[['2026-10-16T10:05:00','p',"Hi, this is Mateo's mom. He's had a barky cough and a bit of a fever since Wednesday. He's breathing ok but sounds hoarse. Should I bring him in?"]],
+reply:{onset:"It started Wednesday, so October 14th.",trend:"About the same, maybe slightly better today. The barky cough is still there at night.",meds:"Just his albuterol as needed and the allergy medicine, he hasn't needed the inhaler though.",appt:"Yes, I could bring him in this afternoon or tomorrow morning.",def:"No wheezing or trouble breathing that I can tell, mostly the barky cough and low fever, around 100.4."}},
+{id:'p5',name:'Boateng, Kwame O.',dob:'1967-11-30',age:58,sex:'M',mrn:'6177403',allergies:'Aspirin (angioedema)',pcp:'Dr. Sam Whitfield',onset:'2026-10-16',missing:[],urgent:true,
+problems:[['Coronary artery disease, s/p PCI','I25.10'],['Type 2 diabetes mellitus','E11.9'],['Hyperlipidemia','E78.5']],
+meds:[['Clopidogrel','75 mg PO daily','2025-05-02',null,'Post-stent, continue 12 months minimum','Dr. P. Anand'],['Metoprolol succinate','50 mg PO daily','2025-05-02',null,'','Dr. P. Anand'],['Atorvastatin','80 mg PO nightly','2025-05-02',null,'High intensity post-ACS','Dr. P. Anand'],['Metformin','500 mg PO BID','2023-01-15',null,'','Dr. S. Whitfield']],
+labs:[['2026-10-16','Troponin I','0.08 ng/mL','<0.04','H','STAT – hospital lab'],['2026-10-16','ECG','Sinus tachycardia, no acute ST changes','','','Office 12-lead'],['2026-09-02','LDL cholesterol','62 mg/dL','<70','','Quest Diagnostics']],
+visits:[['2026-05-02','Cardiology – PCI with drug-eluting stent, LAD','Dr. P. Anand','Successful PCI for 90% LAD stenosis. Dual antiplatelet therapy started.'],['2026-09-02','Office visit – Primary Care','Dr. S. Whitfield','Stable post-stent. Continue current regimen. A1c 6.8%.']],
+msgs:[['2026-10-16T11:20:00','p',"I'm having chest tightness and pressure that started about an hour ago, radiating to my left arm. I feel short of breath and a little sweaty. I have my stent history. Should I call 911?"]],
+reply:{onset:"About an hour ago, it came on while I was resting.",trend:"If anything it feels a bit worse, the pressure hasn't let up.",meds:"My usual clopidogrel, metoprolol, atorvastatin and metformin, took them all this morning as normal.",appt:"I don't think I can wait for an appointment, this feels urgent.",def:"Yes, I'm sweaty and short of breath along with the chest pressure. Should I call 911 right now?"}},
+{id:'p6',name:'Alvarez, Sofia N.',dob:'1998-08-17',age:28,sex:'F',mrn:'6298815',allergies:'Latex (contact dermatitis)',pcp:'Dr. Sam Whitfield',onset:'2026-10-02',missing:['onset','trend','meds'],urgent:false,
+problems:[['Polycystic ovary syndrome','E28.2'],['Migraine without aura','G43.009'],['Mild intermittent asthma','J45.20']],
+meds:[['Combined oral contraceptive','1 tab PO daily','2024-02-01',null,'','Dr. L. Okafor'],['Sumatriptan','50 mg PO PRN migraine, max 2/day','2024-02-01',null,'','Dr. S. Whitfield'],['Spironolactone','50 mg PO daily','2025-08-11',null,'For PCOS-related acne/hirsutism','Dr. L. Okafor']],
+labs:[['2026-08-11','Potassium','4.1 mmol/L','3.5–5.1','','Quest Diagnostics'],['2026-08-11','Testosterone, total','58 ng/dL','8–60','','Quest Diagnostics']],
+visits:[['2026-08-11','Gynecology','Dr. L. Okafor','PCOS follow-up. Continue OCP and spironolactone. Labs reassuring.']],
+msgs:[['2026-10-16T12:40:00','p',"I've been getting these headaches again, they're pretty bad. Can you help?"]],
+reply:{onset:"They started around October 2nd, a couple weeks ago now.",trend:"They've been getting more frequent, almost every other day now instead of once a week.",meds:"My birth control pill, sumatriptan when a migraine hits, and the spironolactone for my PCOS.",appt:"I could come in later this week, Thursday maybe?",def:"The sumatriptan helps some but not as much as it used to. No vision changes or weakness."}}
+];
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fd=d=>new Date(d.slice(0,10)+'T12:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+const ft=t=>fd(t)+' '+new Date(t).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+const KEY='mockchart.v1';let S={msgs:{},unread:{}},sel='p1',tab='chart',win=false,typing=null,subs=[];
+const fresh=()=>{S={msgs:{},unread:{}};P.forEach(p=>{S.msgs[p.id]=p.msgs.map(m=>({t:m[0],from:m[1],text:m[2]}));S.unread[p.id]=1})};
+try{S=JSON.parse(localStorage.getItem(KEY))||(fresh(),S)}catch(e){fresh()}
+if(!S.msgs)fresh();
+P.forEach(p=>{if(!S.msgs[p.id]){S.msgs[p.id]=p.msgs.map(m=>({t:m[0],from:m[1],text:m[2]}));S.unread[p.id]=1}});
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const cur=()=>P.find(p=>p.id===sel);
+const inWin=(d,p)=>{const x=(new Date(p.onset+'T12:00')-new Date(d.slice(0,10)+'T12:00'))/864e5;return x>=0&&x<=21};
+const intent=t=>/appoint|schedul|come in|see you|visit/i.test(t)?'appt':/when|start|begin|onset|how long/i.test(t)?'onset':/better|worse|same|improv|trend|chang/i.test(t)?'trend':/medic|dose|taking|pill|drug/i.test(t)?'meds':'def';
+const fhir=p=>({resourceType:'Bundle',type:'collection',entry:[
+{resourceType:'Patient',id:p.id,identifier:[{system:'urn:mockchart:mrn',value:p.mrn}],name:[{text:p.name}],gender:p.sex==='F'?'female':'male',birthDate:p.dob},
+...p.meds.map((m,i)=>({resourceType:'MedicationRequest',id:p.id+'-mr'+i,status:m[3]?'stopped':'active',intent:'order',subject:{reference:'Patient/'+p.id},medicationCodeableConcept:{text:m[0]},dosageInstruction:[{text:m[1]}],authoredOn:m[2],requester:{display:m[5]},note:m[4]?[{text:m[4]}]:[]})),
+...p.labs.map((l,i)=>({resourceType:'Observation',id:p.id+'-ob'+i,status:'final',category:[{text:'laboratory'}],code:{text:l[1]},subject:{reference:'Patient/'+p.id},effectiveDateTime:l[0],valueString:l[2],referenceRange:[{text:l[3]}],interpretation:l[4]?[{text:l[4]}]:[],performer:[{display:l[5]}]})),
+...p.visits.map((v,i)=>({resourceType:'Encounter',id:p.id+'-en'+i,status:'finished',type:[{text:v[1]}],subject:{reference:'Patient/'+p.id},period:{start:v[0]},participant:[{individual:{display:v[2]}}],reasonCode:[{text:v[3]}]})),
+...S.msgs[p.id].map((m,i)=>({resourceType:'Communication',id:p.id+'-cm'+i,status:'completed',subject:{reference:'Patient/'+p.id},sent:m.t,sender:{display:m.from==='p'?'Patient (patient-reported)':'Dr. Sam Whitfield'},payload:[{contentString:m.text}]}))
+].map(resource=>({resource}))});
+function send(id,text){text=String(text||'').trim();if(!text)return Promise.resolve(null);
+ const p=P.find(x=>x.id===id);S.msgs[id].push({t:new Date().toISOString(),from:'d',text});save();typing=id;render();
+ return new Promise(res=>setTimeout(()=>{const m={t:new Date().toISOString(),from:'p',text:p.reply[intent(text)]};S.msgs[id].push(m);
+  if(sel!==id||tab!=='inbox')S.unread[id]=(S.unread[id]||0)+1;typing=null;save();render();subs.forEach(f=>f(id,m));res(m)},1300))}
+const DB={lisinopril:['ACE inhibitor','Dry cough, hyperkalemia, angioedema, dizziness'],metformin:['Biguanide','GI upset, B12 deficiency, lactic acidosis (rare)'],atorvastatin:['Statin','Muscle aches, raised liver enzymes'],sertraline:['SSRI','Nausea, dizziness, low sodium, serotonin syndrome'],omeprazole:['Proton pump inhibitor','Headache, low magnesium with long-term use'],cyclobenzaprine:['Muscle relaxant','Drowsiness, dizziness, dry mouth, serotonin syndrome risk'],ibuprofen:['NSAID','GI bleeding, kidney injury, raised BP','aspirin'],levothyroxine:['Thyroid hormone','Palpitations, tremor, anxiety if over-replaced'],albuterol:['Beta-2 agonist','Tremor, fast heart rate'],fluticasone:['Inhaled corticosteroid','Hoarseness, oral thrush'],ferrous:['Iron supplement','Constipation, nausea'],clopidogrel:['P2Y12 inhibitor','Bleeding, bruising'],metoprolol:['Beta-blocker','Fatigue, slow heart rate'],spironolactone:['Potassium-sparing diuretic','High potassium, breast tenderness'],sumatriptan:['Triptan','Chest tightness, tingling, serotonin syndrome risk'],contraceptive:['Estrogen/progestin','Nausea, BP rise, migraine caution'],cetirizine:['Antihistamine','Drowsiness'],amoxicillin:['Penicillin antibiotic','Rash, diarrhea','penicillin'],aspirin:['NSAID/antiplatelet','GI bleeding','aspirin'],sulfamethoxazole:['Sulfonamide antibiotic','Rash, high potassium','sulfa']};
+const IX=[['lisinopril','ibuprofen','Moderate','NSAID can blunt BP control and raise kidney injury risk'],['lisinopril','spironolactone','Major','Additive high-potassium risk'],['sertraline','cyclobenzaprine','Major','Serotonin syndrome risk'],['sertraline','sumatriptan','Major','Serotonin syndrome risk'],['sertraline','ibuprofen','Moderate','Increased GI bleeding risk'],['clopidogrel','omeprazole','Moderate','Omeprazole may reduce clopidogrel activation'],['levothyroxine','ferrous','Moderate','Iron reduces levothyroxine absorption; separate by 4 hours'],['albuterol','metoprolol','Moderate','Beta-blocker may blunt albuterol effect'],['clopidogrel','ibuprofen','Major','Additive bleeding risk'],['clopidogrel','aspirin','Moderate','Additive bleeding risk']];
+const dk=n=>Object.keys(DB).find(k=>String(n).toLowerCase().includes(k));
+const actKeys=p=>[...new Set(p.meds.filter(m=>!m[3]).map(m=>dk(m[0])).filter(Boolean))];
+const pairs=(a,b)=>IX.filter(x=>(x[0]===a&&x[1]===b)||(x[0]===b&&x[1]===a));
+function allIx(p){const k=actKeys(p),r=[];for(let i=0;i<k.length;i++)for(let j=i+1;j<k.length;j++)pairs(k[i],k[j]).forEach(x=>r.push(x));return r}
+function lookup(name,p){const k=dk(name);if(!k)return{drug:name,found:false};const d=DB[k],ix=[];actKeys(p).forEach(a=>{if(a!==k)pairs(k,a).forEach(x=>ix.push(x))});
+ const al=d[2]&&p.allergies.toLowerCase().includes(d[2])?'Patient allergy on file: '+p.allergies:null;
+ return{drug:name,found:true,class:d[0],adverse:d[1],allergyAlert:al,interactions:ix.map(x=>({with:x[0]===k?x[1]:x[0],severity:x[2],note:x[3]}))}}
+let dq='';
+let fda=null;
+const cl=t=>{t=Array.isArray(t)?t.join(' '):t;if(!t)return'';t=String(t).replace(/\s+/g,' ');return t.length>900?t.slice(0,900)+'…':t};
+async function fdaFetch(name){const q=encodeURIComponent('"'+name+'"');
+ const r=await fetch('https://api.fda.gov/drug/label.json?search=openfda.generic_name:'+q+'+openfda.brand_name:'+q+'&limit=1');
+ if(!r.ok)throw new Error(r.status);const x=(await r.json()).results[0],o=x.openfda||{};
+ return{generic:(o.generic_name||[])[0],brand:(o.brand_name||[])[0],cls:(o.pharm_class_epc||[]).join('; '),boxed:cl(x.boxed_warning),interactions:cl(x.drug_interactions),adverse:cl(x.adverse_reactions),contra:cl(x.contraindications),full:Array.isArray(x.drug_interactions)?x.drug_interactions.join(' '):String(x.drug_interactions||'')}}
+function runLookup(){dq=$('#dbq').value.trim();if(!dq)return;fda={q:dq,status:'loading'};render();
+ fdaFetch(dq).then(d=>{fda={q:dq,status:'ok',d};render()}).catch(()=>{fda={q:dq,status:'err'};render()})}
+function drugPanel(p){const r=dq?lookup(dq,p):null,ixs=allIx(p);let live='';
+ if(fda&&fda.q===dq){
+  if(fda.status==='loading')live='<div class="dev">Searching openFDA…</div>';
+  else if(fda.status==='err')live='<div class="dev">Live openFDA lookup unavailable (published pages block outside network calls, or no label matched). Download this file and open it locally for live FDA labels. Built-in mock data is shown below.</div>';
+  else{const d=fda.d,m=actKeys(p).filter(k=>d.full.toLowerCase().includes(k));
+   live=`<div style="padding:12px"><b>FDA label (openFDA, live)</b>: ${esc(d.brand||'')} ${d.generic?'('+esc(d.generic)+')':''}<br>${d.cls?'Class: '+esc(d.cls)+'<br>':''}${m.length?`<div class="urg">Label interaction text mentions this patient's current meds: ${esc(m.join(', '))}</div>`:''}${d.boxed?`<br><b>Boxed warning</b>: ${esc(d.boxed)}`:''}<br><br><b>Drug interactions</b>: ${esc(d.interactions||'Not listed')}<br><br><b>Adverse reactions</b>: ${esc(d.adverse||'Not listed')}<br><br><b>Contraindications</b>: ${esc(d.contra||'Not listed')}</div>`}}
+ return `<div class="card"><h3>Drug Information</h3><div class="dev">Live source: openFDA drug labels (free, no key; only the drug name is sent, never patient data). Fallback: small built-in mock list.</div>
+ <div class="comp"><input class="q" id="dbq" placeholder="Look up a drug, e.g. amoxicillin, ibuprofen" value="${esc(dq)}"><button class="pri" id="dbgo">Look up</button></div>${live}
+ ${r?(r.found?`<div style="padding:12px"><b>Built-in mock data · ${esc(r.drug)}</b> · ${r.class}<br>Common adverse effects: ${esc(r.adverse)}${r.allergyAlert?`<div class="urg">ALLERGY ALERT: ${esc(r.allergyAlert)}</div>`:''}<br><br><b>Interactions with current medications</b>${r.interactions.length?`<div class="tw"><table>${r.interactions.map(x=>`<tr><td>${esc(x.with)}</td><td class="sev-${x.severity}">${x.severity}</td><td>${esc(x.note)}</td></tr>`).join('')}</table></div>`:'<br>None found.'}</div>`:`<div style="padding:12px" class="mu">"${esc(r.drug)}" is not in the mock list.</div>`):''}</div>
+ <div class="card"><h3>Interactions among ${esc(p.name.split(',')[0])}'s current medications (mock)</h3><div class="tw"><table><tr><th>Pair</th><th>Severity</th><th>Note</th></tr>${ixs.map(x=>`<tr><td>${esc(x[0])} + ${esc(x[1])}</td><td class="sev-${x[2]}">${x[2]}</td><td>${esc(x[3])}</td></tr>`).join('')||'<tr><td colspan="3" class="mu">None found</td></tr>'}</table></div></div>`}
+function render(){
+ $('#list').innerHTML=P.map(p=>`<div class="pt ${p.id===sel?'on':''}" data-id="${p.id}"><div><b>${esc(p.name)}</b><small>${p.age} y ${p.sex} · MRN ${p.mrn}</small>${p.urgent?'<span class="urgtag">URGENT</span>':''}</div>${S.unread[p.id]?`<span class="badge">${S.unread[p.id]}</span>`:''}</div>`).join('');
+ const p=cur();
+ let h=`<div class="ban"><h2>${esc(p.name)}</h2><span>DOB <b>${p.dob}</b> (${p.age} y)</span><span>Sex <b>${p.sex}</b></span><span>MRN <b>${p.mrn}</b></span><span>PCP <b>${esc(p.pcp)}</b></span><span>Allergies <b class="alg">${esc(p.allergies)}</b></span>${p.urgent?'<div class="urg" style="width:100%">URGENT: patient reports chest pressure with arm radiation and shortness of breath. Needs immediate clinician review.</div>':''}</div>
+ <nav>${[['chart','Chart Review'],['inbox','In Basket – Messages'],['drug','Drug Information'],['fhir','FHIR R4 (dev)']].map(t=>`<button data-tab="${t[0]}" class="${tab===t[0]?'on':''}">${t[1]}</button>`).join('')}</nav>`;
+ if(tab==='chart'){
+  const med=p.meds;
+  h+=`<div class="card"><h3>Problem List</h3><div class="tw"><table><tr><th>Diagnosis</th><th>ICD-10</th></tr>${p.problems.map(x=>`<tr><td>${esc(x[0])}</td><td>${x[1]}</td></tr>`).join('')}</table></div></div>
+  <div class="card"><h3>Medications &amp; Changes</h3><div class="tw"><table><tr><th>Medication</th><th>Sig</th><th>Start</th><th>End</th><th>Note</th><th>Source</th></tr>${med.slice().sort((a,b)=>b[2].localeCompare(a[2])).map(m=>`<tr><td><b>${esc(m[0])}</b></td><td>${esc(m[1])}</td><td>${fd(m[2])}</td><td>${m[3]?fd(m[3]):'<span class="mu">active</span>'}</td><td>${esc(m[4])}</td><td class="mu">${esc(m[5])}</td></tr>`).join('')||'<tr><td colspan="6" class="mu">None</td></tr>'}</table></div></div>
+  <div class="card"><h3>Results</h3><div class="tw"><table><tr><th>Date</th><th>Component</th><th>Value</th><th>Ref range</th><th>Flag</th><th>Source</th></tr>${p.labs.slice().sort((a,b)=>b[0].localeCompare(a[0])).map(l=>`<tr><td>${fd(l[0])}</td><td>${esc(l[1])}</td><td class="${l[4]?'flag':''}">${esc(l[2])}</td><td>${l[3]}</td><td class="flag">${l[4]}</td><td class="mu">${esc(l[5])}</td></tr>`).join('')||'<tr><td colspan="6" class="mu">None</td></tr>'}</table></div></div>
+  <div class="card"><h3>Encounters &amp; Provider Notes</h3><div class="tw"><table><tr><th>Date</th><th>Type</th><th>Provider</th><th>Note (as documented)</th></tr>${p.visits.slice().sort((a,b)=>b[0].localeCompare(a[0])).map(v=>`<tr><td>${fd(v[0])}</td><td>${esc(v[1])}</td><td>${esc(v[2])}</td><td>${esc(v[3])}</td></tr>`).join('')||'<tr><td colspan="4" class="mu">None</td></tr>'}</table></div></div>`;
+ }else if(tab==='inbox'){
+  S.unread[p.id]=0;
+  h+=`<div class="card"><h3>Patient Message · ${esc(p.name)}</h3><div class="dev">Test fixture · onset: ${fd(p.onset)} · incomplete in initial message: ${p.missing.length?p.missing.join(', '):'nothing (complete)'}</div>
+  <div class="thread" id="th">${S.msgs[p.id].map(m=>`<div class="m ${m.from}">${esc(m.text)}<small>${m.from==='p'?esc(p.name.split(',')[0])+'<span class="tag">patient-reported</span>':'Dr. Whitfield'} · ${ft(m.t)}</small></div>`).join('')}${typing===p.id?'<div class="m mu">Patient is typing…</div>':''}</div>
+  <div class="comp"><textarea id="tx" placeholder="Reply to patient… (Enter to send, Shift+Enter for new line)"></textarea><button class="pri" id="snd">Send</button></div></div>`;
+ }else if(tab==='drug'){h+=drugPanel(p)}else h+=`<div class="card"><h3>FHIR R4 Bundle – same data an Epic adapter would return</h3><pre>${esc(JSON.stringify(fhir(p),null,2))}</pre></div>`;
+ $('#main').innerHTML=h;
+ const th=$('#th');if(th)th.scrollTop=th.scrollHeight;
+ if(tab==='inbox'){const tx=$('#tx');if(tx&&!typing)tx.focus()}
+ save()}
+document.addEventListener('click',e=>{const hh=e.target.closest('.card>h3');if(hh){hh.parentElement.classList.toggle('col');return}const a=e.target.closest('[data-id]'),b=e.target.closest('[data-tab]');
+ if(a){sel=a.dataset.id;tab='inbox';render()}else if(b){tab=b.dataset.tab;render()}else if(e.target.id==='snd'){send(sel,$('#tx').value)}
+ else if(e.target.id==='dbgo'){runLookup()}else if(e.target.id==='reset'){fresh();save();typing=null;render()}});
+document.addEventListener('keydown',e=>{if(e.target.id==='dbq'&&e.key==='Enter'){runLookup();return}if(e.target.id==='tx'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();send(sel,e.target.value)}});
+// Test API for the CuraAI adapter: window.MockEpic
+const API_KEY='mock-curaai-key-0000';
+const api={today:TODAY,patients:()=>P.map(p=>({id:p.id,name:p.name,mrn:p.mrn,onset:p.onset})),
+ chart:(id,o={})=>{const p=P.find(x=>x.id===id),a=o.from||'0000',b=o.to||'9999',r=d=>d>=a&&d<=b;return{meds:p.meds.filter(m=>r(m[2])||(m[3]&&r(m[3]))),labs:p.labs.filter(l=>r(l[0])),visits:p.visits.filter(v=>r(v[0]))}},
+ fhir:id=>fhir(P.find(x=>x.id===id)),messages:id=>S.msgs[id].slice(),send:(id,t)=>send(id,t),onPatientMessage:f=>subs.push(f),drugLabelLive:n=>fdaFetch(n),drugLookup:(d,id)=>lookup(d,P.find(x=>x.id===id)),interactions:id=>allIx(P.find(x=>x.id===id)).map(x=>({a:x[0],b:x[1],severity:x[2],note:x[3]}))};
+window.MockEpic={devKey:API_KEY,connect:k=>{if(k!==API_KEY)throw new Error('401 Invalid API key');return api}};
+render();
+</script></body></html>
