@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "curaai"
+version = "0.1.0"
+description = "CuraAI: Clinical Record Triage and Historical Pre-Fetch (CS302 Team Tokenizer)"
+requires-python = ">=3.12"
+dependencies = []            # Rings 1-2 use the standard library only
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "import-linter>=2"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2"]   # Ring 3/4 only, later pass
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+
+# ---------------------------------------------------------------------------
+# Dependency Rule, enforced in CI with `lint-imports` (ADR-015)
+# ---------------------------------------------------------------------------
+[tool.importlinter]
+root_package = "curaai"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Rings point inward: app -> adapters -> application -> domain"
+type = "layers"
+layers = ["curaai.app", "curaai.adapters", "curaai.application", "curaai.domain"]
+
+[[tool.importlinter.contracts]]
+name = "Adapters never import each other"
+type = "independence"
+modules = [
+    "curaai.adapters.clock",
+    "curaai.adapters.drug",
+    "curaai.adapters.ehr",
+    "curaai.adapters.model",
+    "curaai.adapters.observability",
+    "curaai.adapters.persistence",
+    "curaai.adapters.presenters",
+    "curaai.adapters.web",
+]
+
+[[tool.importlinter.contracts]]
+name = "No frameworks or SDKs in the inner two rings"
+type = "forbidden"
+source_modules = ["curaai.domain", "curaai.application"]
+forbidden_modules = ["fastapi", "pydantic", "uvicorn", "boto3", "openai", "anthropic", "httpx", "requests", "sqlalchemy", "psycopg"]
