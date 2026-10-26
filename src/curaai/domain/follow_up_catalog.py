@@ -54,6 +54,10 @@ class FollowUpCatalog:
         return sorted(candidates, key=lambda q: (-len(q.asks_for), q.id))[0]
 
 
+# Team decision (2026-10-26): every follow-up is labeled as automated, so a patient never
+# mistakes a CuraAI question for a message written by their doctor. EHR adapters must show it.
+AUTOMATED_SENDER_LABEL = "Automated question from CuraAI"
+
 # DRAFT, pending clinician sign-off (ADR-009).
 DEFAULT_FOLLOW_UP_CATALOG = FollowUpCatalog((
     FollowUpQuestion(

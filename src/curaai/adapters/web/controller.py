@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
-from curaai.application.dto.messaging import InboundMessage, OutboundFollowUp
+from curaai.application.dto.messaging import InboundMessage
 from curaai.application.errors import ExternalSourceUnavailable, RejectedInboundMessage
 from curaai.application.use_cases import PipelineTrigger
 
@@ -31,8 +31,16 @@ class BundleSink(Protocol):
     def put(self, patient_id: str, bundle: Mapping) -> None: ...
 
 
+class OutboxEntry(Protocol):
+    patient_id: str
+    question_id: str
+    text: str
+    sender_label: str
+    display_text: str
+
+
 class Outbox(Protocol):
-    def drain(self, patient_id: str | None = None) -> tuple[OutboundFollowUp, ...]: ...
+    def drain(self, patient_id: str | None = None) -> tuple[OutboxEntry, ...]: ...
 
 
 class ReviewStore(Protocol):
@@ -83,7 +91,8 @@ class WebController:
     def get_outbox(self, patient_id: str | None) -> WebResponse:
         items = self.outbox.drain(patient_id)
         return WebResponse(200, {"follow_ups": [
-            {"patient_id": f.patient_id, "question_id": f.question_id, "text": f.text} for f in items]})
+            {"patient_id": f.patient_id, "question_id": f.question_id, "text": f.text,
+             "sender_label": f.sender_label, "display_text": f.display_text} for f in items]})
 
     # ---- GET /api/reviews/{case_id}, /reviews/{case_id}, /api/patients/{id}/review --------------
     def get_review_json(self, case_id: str) -> WebResponse:

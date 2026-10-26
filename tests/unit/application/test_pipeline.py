@@ -65,6 +65,7 @@ def test_missing_details_trigger_one_catalog_follow_up_then_the_reply_completes_
     assert first.outcome is PipelineOutcome.FOLLOW_UP_SENT
     (question,) = h.messaging.sent
     assert question.text == DEFAULT_FOLLOW_UP_CATALOG.get(question.question_id).text  # catalog text only
+    assert question.sender_label == "Automated question from CuraAI"                  # always labeled
     assert h.review.presented == [] and h.ehr.queries == []                          # no chart pull yet
 
     h.clock.advance(hours=2)

@@ -60,7 +60,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - Complete = **onset + trend** present
 - Lookback = **onset − 21 days through today**
 - Follow-up timeout = **24 hours**
-- Caps per case: **6 model calls, 5 lookups, 2 follow-ups, $0.25**
+- Caps per case: **12 model calls** (doubled from 6, team decision 2026-10-26), **5 lookups, 2 follow-ups, $0.25**
 - Every chart/drug row **must have a source_ref**
 - Patient words are always labeled **patient-reported**
 - In-person verification banner is **always on**
@@ -86,7 +86,9 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **CostGuard** ($0.25/case + daily budget) lives in `adapters/model` (adapters can't import each other). Tripping on a spike of failed validations is deferred until the eval run sets a threshold.
 - **Metrics are computed from the audit log** (`case_metrics`), so they always match what auditors see.
 - **Web layer**: `WebController` makes every HTTP decision with no framework; FastAPI routes each make one call. Backend serves MockChart at `/mockchart` with a bridge script added (team's HTML never edited).
-- Follow-up questions reach MockChart through an **outbox** the bridge polls; they show as messages from Dr. Whitfield (mock only has a doctor-send function).
+- Follow-up questions reach MockChart through an **outbox** the bridge polls.
+- **Every follow-up is labeled "Automated question from CuraAI"** (decision 2026-10-26). The label is required on every outbound question and set by the core, so no adapter can drop it. In MockChart it goes in front of the unchanged catalog text; real Epic should use its own sender/automation field.
+- **Model-call cap doubled 6 → 12** (decision 2026-10-26): Whitaker's 2-follow-up case now uses 7 calls and keeps medication flagging. Record as an amendment to ADR-011.
 - **`CURAAI_MODEL_BACKEND=none`** runs the whole demo with no AWS account (fixed chart pull, no AI).
 - Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
 - Re-captured MockChart data after the team added **amlodipine (stopped Aug 18)** + an Aug 18 visit to Ellison; the parity test caught it.
@@ -95,8 +97,6 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 1. **Urgent symptoms**: nothing fast-tracks chest pain (MockChart p5). Add a red-flag rule?
 2. Symptom + follow-up **catalogs are drafts**; they need clinician sign-off (ADR-009).
 3. A message arriving mid-processing opens a new case. OK?
-4. **Model-call cap of 6 is tight**: in the live MockChart run, Whitaker's 2-follow-up case used all 6, so medication flagging was skipped. Raise to 8, or don't count question picks?
-5. Follow-up questions show as from **Dr. Whitfield** in MockChart. Label them as automated CuraAI questions in real Epic?
 
 ## How to run
 **Demo (no cloud account):** `pip install -e ".[web]"`, copy `.env.example` to `.env`, run `python -m curaai.app.main`, open http://127.0.0.1:8000/mockchart. Use the CuraAI panel (bottom right) → **Open review**.
@@ -119,7 +119,9 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [ ] Review + merge PR #6 → #7 → #8 (run real `pytest` + `lint-imports` first)
 - [x] FastAPI routes + `app/main.py` + MockChart bridge (PR #8)
 - [ ] Run the demo on a teammate's machine: `python -m curaai.app.main` → /mockchart
-- [ ] Decide the model-call cap (open question 4)
+- [x] Model-call cap decided: doubled to 12
+- [x] Follow-ups labeled as automated
+- [ ] Write the ADR-011 amendment (cap 6 → 12) and an ADR note for the automated label
 - [x] EHR adapter: FHIR mapper + `MockEpicAdapter` (PR #2)
 - [x] Drug DB adapters: `MockDrugAdapter`, `OpenFdaAdapter` (PR #3)
 - [ ] Record one real openFDA response and compare with the synthetic fixture
@@ -137,3 +139,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: PR #5 merged to `main`. Pushed PR #6: `JsonlAuditLog` (append-only, fsync'd, no patient text) and `InMemoryConversationStore` (thread-safe), with contract tests that run the same checks on the fakes and the real adapters. 125 tests passing.
 - **2026-10-26 (later)**: Pushed PR #7 (model side): prompts + parsers for the 4 model ports, in-process `ModelGateway` (redaction, pricing, audit), `BedrockConverseTransport`, `CostGuard`, logging decorators, `case_metrics`. Fixed a redaction bug (an MRN at the end of a sentence slipped through). Full pipeline runs through the real model stack with only the vendor faked. 152 tests passing.
 - **2026-10-26 (later)**: Pushed PR #8: framework-free `WebController`, FastAPI routes, `app/main.py` (`Config.from_env`, `build_container`), MockChart bridge + outbox, `none` model mode. Re-captured MockChart data (team added amlodipine). Ran the real page + bridge + backend in a browser: Whitaker got 2 catalog follow-ups, the simulated patient answered, and the review opened inside MockChart. **All four rings are built.** 174 tests passing.
+- **2026-10-26 (later)**: Team decisions applied to PR #8: follow-ups labeled "Automated question from CuraAI" (required, set by the core) and the model-call cap doubled to 12. Browser re-check: label shows in MockChart, the simulated patient still answers correctly, and Whitaker's case uses 7 of 12 calls and keeps the sertraline flag. 174 tests passing.

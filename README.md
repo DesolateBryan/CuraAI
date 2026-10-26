@@ -154,9 +154,11 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **Parsers don't judge values.** A prompt parser only refuses text that isn't a JSON object. Wrong types, unknown ids and injected text pass through to the core's `ModelOutputValidator`, so every rejection is decided and audited in one place.
 - **`CostGuard` lives in `adapters/model`**, not observability, because it wraps `GatewayClient` and adapter packages never import each other. It enforces the per-case dollar cap and a daily budget. Ring 2 already enforces the call, lookup and follow-up caps. Tripping on a spike in failed validations is deferred until the evaluation run gives a threshold.
 - **Metrics come from the audit log** (`case_metrics`, ADR-008), so the numbers can never disagree with what auditors see.
+- **Model-call cap doubled from 6 to 12 per case** (team decision, 2026-10-26). In the MockChart run, a two-follow-up case used all 6 and lost medication flagging; with 12 the same case uses 7 and keeps it. The lookup, follow-up and $0.25 caps are still the ADR-011 proposals. Record this as an amendment to ADR-011.
 - **The web layer is split for testing.** `WebController` makes every HTTP decision (request checks, status codes, response shapes) with no framework imported. The FastAPI routes each make one call to it. Collaborators are injected as small Protocols, so the web package imports no other adapter.
 - **The backend serves MockChart at `/mockchart` with the bridge added**, so the page and API share an origin (no CORS) and the team's HTML file stays untouched. The raw FHIR bundle stops at the EHR adapter's bundle source.
-- **Follow-up questions reach the page through an outbox** that the bridge polls. In MockChart they show up as messages from Dr. Whitfield, because the mock only has a doctor-send function. That fits ADR-009 ("replies go through the physician's own EHR session").
+- **Follow-up questions reach the page through an outbox** that the bridge polls.
+- **Every follow-up is labeled as automated** (team decision, 2026-10-26). `OutboundFollowUp.sender_label` is required and set by the core from `AUTOMATED_SENDER_LABEL` ("Automated question from CuraAI"), so no adapter can drop it. MockChart can only post as the doctor, so the label goes in front of the unchanged catalog text. A real Epic adapter should use Epic's own sender or automation field.
 - **`CURAAI_MODEL_BACKEND=none` is a supported mode.** Every model call fails cleanly and the fixed chart pull still runs, so the demo needs no AWS account.
 - **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).
 - **MockChart test data was re-captured** after the team added amlodipine (stopped Aug 18) and an Aug 18 visit to Ellison. The parity test caught the drift.
@@ -167,8 +169,6 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 1. **Urgent symptoms.** Nothing in the briefs fast-tracks something like chest pain radiating to the arm (MockChart patient p5). Today that message would be screened like any other. Do we need a red-flag rule that skips follow-ups and alerts the physician right away?
 2. **Catalog sign-off.** Both catalogs are drafts and need a clinician to approve them (ADR-009).
 3. **A message that arrives while a case is being processed** opens a new case. Is that acceptable?
-4. **The model-call cap of 6 is tight.** In the live MockChart run, Whitaker's case (two follow-ups) used all 6 calls: three readings, two question picks and one row pick. So the medication-flag step was skipped and the review said AI was switched off partway. ADR-011 says to tune the caps; this is the first evidence. Raise to 8, or don't count question picks?
-5. **Follow-up questions appear as messages from Dr. Whitfield** in MockChart. Should the real Epic integration label them as automated CuraAI questions?
 
 ## Remaining work
 

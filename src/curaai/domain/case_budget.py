@@ -1,6 +1,8 @@
 """CaseLimits and CaseBudget: per-case caps from ADR-011 (Governance ADR 5).
 
-Proposed caps, to be tuned after the first evaluation run. When a cap is hit
+Model calls doubled from the proposed 6 to 12 (team decision, 2026-10-26): a case with two
+follow-ups used all 6 in the MockChart run and lost medication flagging. Other caps are
+still the ADR-011 proposals, to be tuned after the first evaluation run. When a cap is hit
 the AI stops for that case; the fixed chart pull still runs.
 Dollar cost is measured by the Ring 3 CostGuard, which reads max_cost_usd.
 """
@@ -13,7 +15,7 @@ from curaai.domain.errors import BudgetExceeded
 
 @dataclass(frozen=True)
 class CaseLimits:
-    max_model_calls: int = 6
+    max_model_calls: int = 12
     max_lookups: int = 5
     max_follow_ups: int = 2
     max_cost_usd: Decimal = Decimal("0.25")
