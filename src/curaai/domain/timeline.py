@@ -35,7 +35,8 @@ SECTION_FOR_KIND = {
     ChartItemKind.LAB: Section.LABS,
 }
 
-_DRUG_FIELDS = (("class_text", "Drug class"), ("adverse_text", "Adverse reactions"),
+_DRUG_FIELDS = (("boxed_warning_text", "Boxed warning"), ("class_text", "Drug class"),
+                ("contraindications_text", "Contraindications"), ("adverse_text", "Adverse reactions"),
                 ("interactions_text", "Drug interactions"))
 
 

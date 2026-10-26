@@ -16,3 +16,5 @@ class DrugRecord:
     class_text: str | None = None
     adverse_text: str | None = None
     interactions_text: str | None = None
+    boxed_warning_text: str | None = None
+    contraindications_text: str | None = None

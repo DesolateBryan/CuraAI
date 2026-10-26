@@ -61,3 +61,23 @@ def test_sick_message_is_patient_originated_and_timezone_aware():
         SickMessage(MessageId("m1"), PatientId("p1"), sent.replace(tzinfo=None), "I have a cough")
     with pytest.raises(ValueError):
         SickMessage(MessageId("m1"), PatientId("p1"), sent, "I have a cough", origin=Origin.CHART)
+
+
+def test_stopped_medication_is_never_active_even_without_an_end_date():
+    # MockChart's FHIR gives stopped meds status="stopped" but no end date (ADR-005 watch item)
+    stopped = med(date(2025, 2, 10), stopped=True)
+    assert not stopped.is_active_medication_on(date(2026, 10, 16))
+    assert not stopped.is_change_within(WINDOW)       # stop date unknown, so not counted as a change
+
+
+def test_only_medications_can_be_stopped():
+    with pytest.raises(ValueError):
+        med(date(2026, 9, 22), kind=ChartItemKind.LAB, stopped=True)
+
+
+def test_boxed_warning_is_kept_and_listed_first():
+    from curaai.domain.timeline import TimelineEntry
+    info = DrugInfo(drug_name="x", source_ref="openfda:spl/x@1", adverse_text="Nausea",
+                    boxed_warning_text="WARNING: serious risk", contraindications_text="Angioedema")
+    titles = [e.title for e in TimelineEntry.from_drug_info(info)]
+    assert titles == ["x: Boxed warning", "x: Contraindications", "x: Adverse reactions"]

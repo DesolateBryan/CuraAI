@@ -1,0 +1,61 @@
+{
+ "_comment": "Shape copied from openFDA /drug/label.json responses. ALL label text is synthetic test text, not real FDA labeling.",
+ "meta": {
+  "results": {
+   "skip": 0,
+   "limit": 5,
+   "total": 2
+  }
+ },
+ "results": [
+  {
+   "set_id": "combo-0000-synthetic",
+   "id": "combo-id",
+   "effective_time": "20250101",
+   "openfda": {
+    "generic_name": [
+     "LISINOPRIL AND HYDROCHLOROTHIAZIDE"
+    ],
+    "brand_name": [
+     "ZESTORETIC"
+    ],
+    "pharm_class_epc": [
+     "Angiotensin Converting Enzyme Inhibitor [EPC]",
+     "Thiazide Diuretic [EPC]"
+    ]
+   },
+   "adverse_reactions": [
+    "SYNTHETIC: combination product text that must NOT be shown for plain lisinopril."
+   ]
+  },
+  {
+   "set_id": "lisino-1111-synthetic",
+   "id": "lisino-id",
+   "effective_time": "20240615",
+   "openfda": {
+    "generic_name": [
+     "LISINOPRIL"
+    ],
+    "brand_name": [
+     "ZESTRIL"
+    ],
+    "pharm_class_epc": [
+     "Angiotensin Converting Enzyme Inhibitor [EPC]"
+    ]
+   },
+   "boxed_warning": [
+    "WARNING: SYNTHETIC BOXED WARNING TEXT FOR TESTS."
+   ],
+   "contraindications": [
+    "4 CONTRAINDICATIONS (SYNTHETIC) History of angioedema."
+   ],
+   "adverse_reactions": [
+    "6 ADVERSE REACTIONS (SYNTHETIC TEST TEXT, NOT A REAL LABEL) The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. The following adverse reactions are listed for testing only. "
+   ],
+   "drug_interactions": [
+    "7 DRUG INTERACTIONS (SYNTHETIC) 7.1 Diuretics ...",
+    "7.4 NSAIDs (SYNTHETIC) ..."
+   ]
+  }
+ ]
+}

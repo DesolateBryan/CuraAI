@@ -1,0 +1,151 @@
+{
+ "_comment": "Captured from the MockChart page's built-in DB and IX tables. Synthetic test data, not clinical reference text.",
+ "drugs": {
+  "lisinopril": {
+   "class": "ACE inhibitor",
+   "adverse": "Dry cough, hyperkalemia, angioedema, dizziness"
+  },
+  "metformin": {
+   "class": "Biguanide",
+   "adverse": "GI upset, B12 deficiency, lactic acidosis (rare)"
+  },
+  "atorvastatin": {
+   "class": "Statin",
+   "adverse": "Muscle aches, raised liver enzymes"
+  },
+  "sertraline": {
+   "class": "SSRI",
+   "adverse": "Nausea, dizziness, low sodium, serotonin syndrome"
+  },
+  "omeprazole": {
+   "class": "Proton pump inhibitor",
+   "adverse": "Headache, low magnesium with long-term use"
+  },
+  "cyclobenzaprine": {
+   "class": "Muscle relaxant",
+   "adverse": "Drowsiness, dizziness, dry mouth, serotonin syndrome risk"
+  },
+  "ibuprofen": {
+   "class": "NSAID",
+   "adverse": "GI bleeding, kidney injury, raised BP",
+   "allergy_group": "aspirin"
+  },
+  "levothyroxine": {
+   "class": "Thyroid hormone",
+   "adverse": "Palpitations, tremor, anxiety if over-replaced"
+  },
+  "albuterol": {
+   "class": "Beta-2 agonist",
+   "adverse": "Tremor, fast heart rate"
+  },
+  "fluticasone": {
+   "class": "Inhaled corticosteroid",
+   "adverse": "Hoarseness, oral thrush"
+  },
+  "ferrous": {
+   "class": "Iron supplement",
+   "adverse": "Constipation, nausea"
+  },
+  "clopidogrel": {
+   "class": "P2Y12 inhibitor",
+   "adverse": "Bleeding, bruising"
+  },
+  "metoprolol": {
+   "class": "Beta-blocker",
+   "adverse": "Fatigue, slow heart rate"
+  },
+  "spironolactone": {
+   "class": "Potassium-sparing diuretic",
+   "adverse": "High potassium, breast tenderness"
+  },
+  "sumatriptan": {
+   "class": "Triptan",
+   "adverse": "Chest tightness, tingling, serotonin syndrome risk"
+  },
+  "contraceptive": {
+   "class": "Estrogen/progestin",
+   "adverse": "Nausea, BP rise, migraine caution"
+  },
+  "cetirizine": {
+   "class": "Antihistamine",
+   "adverse": "Drowsiness"
+  },
+  "amoxicillin": {
+   "class": "Penicillin antibiotic",
+   "adverse": "Rash, diarrhea",
+   "allergy_group": "penicillin"
+  },
+  "aspirin": {
+   "class": "NSAID/antiplatelet",
+   "adverse": "GI bleeding",
+   "allergy_group": "aspirin"
+  },
+  "sulfamethoxazole": {
+   "class": "Sulfonamide antibiotic",
+   "adverse": "Rash, high potassium",
+   "allergy_group": "sulfa"
+  }
+ },
+ "interactions": [
+  {
+   "a": "lisinopril",
+   "b": "ibuprofen",
+   "severity": "Moderate",
+   "note": "NSAID can blunt BP control and raise kidney injury risk"
+  },
+  {
+   "a": "lisinopril",
+   "b": "spironolactone",
+   "severity": "Major",
+   "note": "Additive high-potassium risk"
+  },
+  {
+   "a": "sertraline",
+   "b": "cyclobenzaprine",
+   "severity": "Major",
+   "note": "Serotonin syndrome risk"
+  },
+  {
+   "a": "sertraline",
+   "b": "sumatriptan",
+   "severity": "Major",
+   "note": "Serotonin syndrome risk"
+  },
+  {
+   "a": "sertraline",
+   "b": "ibuprofen",
+   "severity": "Moderate",
+   "note": "Increased GI bleeding risk"
+  },
+  {
+   "a": "clopidogrel",
+   "b": "omeprazole",
+   "severity": "Moderate",
+   "note": "Omeprazole may reduce clopidogrel activation"
+  },
+  {
+   "a": "levothyroxine",
+   "b": "ferrous",
+   "severity": "Moderate",
+   "note": "Iron reduces levothyroxine absorption; separate by 4 hours"
+  },
+  {
+   "a": "albuterol",
+   "b": "metoprolol",
+   "severity": "Moderate",
+   "note": "Beta-blocker may blunt albuterol effect"
+  },
+  {
+   "a": "clopidogrel",
+   "b": "ibuprofen",
+   "severity": "Major",
+   "note": "Additive bleeding risk"
+  },
+  {
+   "a": "clopidogrel",
+   "b": "aspirin",
+   "severity": "Moderate",
+   "note": "Additive bleeding risk"
+  }
+ ]
+}

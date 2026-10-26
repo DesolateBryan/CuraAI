@@ -25,6 +25,7 @@ class ChartItem:
     flag: str | None = None    # abnormal flag as documented, e.g. "H" or "L"
     code: str | None = None
     code_system: str | None = None
+    stopped: bool = False      # discontinued, even when the EHR gives no end date
 
     def __post_init__(self) -> None:
         if not isinstance(self.source_ref, str) or not self.source_ref.strip():
@@ -33,6 +34,8 @@ class ChartItem:
         require_text(self.title, "ChartItem.title")
         if not isinstance(self.detail, str) or self.detail == "":
             raise ValueError("ChartItem.detail must be the documented text")
+        if self.stopped and self.kind is not ChartItemKind.MEDICATION:
+            raise ValueError("only medications can be stopped")
         if self.end_date is not None and self.end_date < self.date:
             raise ValueError("ChartItem end_date is before its date")
 
@@ -43,6 +46,7 @@ class ChartItem:
     def is_active_medication_on(self, day: date) -> bool:
         return (
             self.kind is ChartItemKind.MEDICATION
+            and not self.stopped
             and self.date <= day
             and (self.end_date is None or self.end_date > day)
         )
