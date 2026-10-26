@@ -162,3 +162,31 @@ class InMemoryConversationStore(ConversationStorePort):
 
     def list_awaiting_patient(self) -> tuple[ConversationSnapshot, ...]:
         return tuple(s for s in self.by_case.values() if s.state == AWAITING_PATIENT_VALUE)
+
+
+# ---- vendor transport (replaces Bedrock in tests) -------------------------------------------
+class ScriptedTransport:
+    """A VendorTransport that answers each model port with canned raw text.
+
+    `answers` maps a port name to raw reply text, or to a callable(user_json: dict) -> text.
+    The port is recognised from the request JSON keys, the way a real model would see it.
+    """
+
+    PORT_KEYS = (("patient_message", "extract_symptoms"), ("candidate_question_ids", "select_follow_up"),
+                 ("medications", "match_flags"), ("items", "pick_relevant_items"))
+
+    def __init__(self, answers: dict, tokens: tuple[int, int] = (400, 40), error: Exception | None = None) -> None:
+        self.answers, self.tokens, self.error = answers, tokens, error
+        self.sent: list[tuple[str, str]] = []
+
+    def send(self, system: str, user: str, max_output_tokens: int):
+        import json
+        from curaai.adapters.model.gateway import VendorReply
+        self.sent.append((system, user))
+        if self.error:
+            raise self.error
+        data = json.loads(user)
+        port = next(p for key, p in self.PORT_KEYS if key in data)
+        answer = self.answers.get(port, "{}")
+        text = answer(data) if callable(answer) else answer
+        return VendorReply(text=text, input_tokens=self.tokens[0], output_tokens=self.tokens[1], model="scripted")
