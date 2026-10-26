@@ -19,7 +19,7 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
+| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`, `JsonlAuditLog`, `InMemoryConversationStore`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
 | 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
 
 ## Quick start
@@ -119,6 +119,8 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **The mock drug list is captured from the page** (`adapters/drug/mockchart_drugs.json`), including its interaction table, so the backend and the page agree.
 - **The presenter owns every display choice.** It fixes the section order; rows run chronologically against onset; and it does the date and offset wording ("17 days before onset"), the "Patient-reported" labels, the approximate-onset wording and the always-on banner. It also writes the notices for incomplete cases, the AI fallback and withheld records. It never edits row text. Current medications show "Since <date>" without an offset.
 - **The review packet records the window it searched**, so the doctor sees the exact range rather than the presenter recomputing a business rule.
+- **The audit log is an append-only JSONL file for the prototype** (Postgres later, ADR-017). One JSON line per event, flushed and fsync'd, with a schema version; there is no update or delete. Patient message text is never written to it, only ids, counts and reasons.
+- **Open cases are kept in memory.** A restart loses open cases and their 24-hour timers. The trigger for building a database-backed store is "the timeout must survive a restart".
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -130,6 +132,6 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 ## Remaining work (Ring 3 → Ring 4)
 
 ~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → ~~`MockDrugAdapter` / `OpenFdaAdapter`~~ (done)
-→ ~~`ReviewPresenter`~~ (done) → `JsonlAuditLog` / `InMemoryConversationStore` → model
+→ ~~`ReviewPresenter`~~ (done) → ~~`JsonlAuditLog` / `InMemoryConversationStore`~~ (done) → model
 adapters + `GatewayClient` + logging/CostGuard decorators → FastAPI router →
 `app/main.py` → the MockChart page bridge.

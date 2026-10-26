@@ -7,6 +7,8 @@ drive the system through PipelineTrigger, never through UI selectors.
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from curaai.application.ports.audit_log_port import AuditLogPort
+from curaai.application.ports.conversation_store_port import ConversationStorePort
 from curaai.application.ports.drug_db_port import DrugDbPort
 from curaai.application.ports.ehr_port import EhrPort
 from curaai.application.ports.review_output_port import ReviewOutputPort
@@ -39,15 +41,16 @@ class Harness:
     flagger: MatchFlagsPort
     messaging: FakeMessaging
     review: ReviewOutputPort
-    audit: InMemoryAuditLog
-    store: InMemoryConversationStore
+    audit: AuditLogPort
+    store: ConversationStorePort
     prefetch: PrefetchHistory = field(repr=False)
 
 
 def build(*, extractor: ExtractSymptomsPort | None = None, selector: SelectFollowUpPort | None = None,
           picker: PickRelevantItemsPort | None = None, flagger: MatchFlagsPort | None = None,
           ehr: EhrPort | None = None, drug_db: DrugDbPort | None = None,
-          review_output: ReviewOutputPort | None = None, limits: CaseLimits = CaseLimits(), now: datetime = NOW) -> Harness:
+          review_output: ReviewOutputPort | None = None,
+          store: ConversationStorePort | None = None, audit_log: AuditLogPort | None = None, limits: CaseLimits = CaseLimits(), now: datetime = NOW) -> Harness:
     clock = FixedClock(now)
     ehr = ehr or FakeEhr({pid: chart_records(pid) for pid in PATIENTS})
     drug_db = drug_db or FakeDrugDb(drug_records())
@@ -56,7 +59,8 @@ def build(*, extractor: ExtractSymptomsPort | None = None, selector: SelectFollo
     picker = picker or FakePickRelevantItems()
     flagger = flagger or FakeMatchFlags()
     messaging, review = FakeMessaging(), review_output or FakeReviewOutput()
-    audit, store = InMemoryAuditLog(), InMemoryConversationStore()
+    audit = audit_log or InMemoryAuditLog()
+    store = store or InMemoryConversationStore()
 
     validator = ModelOutputValidator(DEFAULT_SYMPTOM_CATALOG)
     screen = ScreenSickMessage(extractor, validator, DEFAULT_SYMPTOM_CATALOG, audit, clock)
