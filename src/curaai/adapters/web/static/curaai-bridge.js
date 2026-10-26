@@ -51,7 +51,7 @@
       if (res.ok) {
         for (const f of (await res.json()).follow_ups) {
           setStatus(f.patient_id, { outcome: "follow_up_sent" });
-          api.send(f.patient_id, f.text);          // catalog text, exactly as the backend sent it
+          api.send(f.patient_id, f.display_text);  // "Automated question from CuraAI: <catalog text>", as the backend sent it
         }
       }
     } catch (e) { /* backend restarting; try again next tick */ }

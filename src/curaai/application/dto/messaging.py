@@ -18,3 +18,8 @@ class OutboundFollowUp:
     patient_id: str
     question_id: str
     text: str                   # always copied from the fixed FollowUpCatalog, never model text
+    sender_label: str           # "Automated question from CuraAI"; adapters must display it
+
+    def __post_init__(self) -> None:
+        if not self.sender_label.strip():
+            raise ValueError("an automated follow-up must carry its sender label")

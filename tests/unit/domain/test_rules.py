@@ -70,9 +70,10 @@ def test_timeout_requires_timezone_aware_times():
 
 
 # ---- CaseBudget (ADR-011) -------------------------------------------------------------
-def test_default_caps_match_adr_011():
+def test_default_caps_match_adr_011_with_model_calls_doubled():
+    # team decision 2026-10-26: model calls 6 -> 12; other caps are the ADR-011 proposals
     limits = CaseLimits()
-    assert (limits.max_model_calls, limits.max_lookups, limits.max_follow_ups) == (6, 5, 2)
+    assert (limits.max_model_calls, limits.max_lookups, limits.max_follow_ups) == (12, 5, 2)
 
 
 def test_budget_trips_at_the_cap_and_is_immutable():

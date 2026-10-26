@@ -141,6 +141,9 @@ def test_whitaker_follow_up_goes_out_through_the_outbox_and_the_reply_completes_
 
         (question,) = k.controller.get_outbox(None).body["follow_ups"]
         assert question["patient_id"] == "p2" and question["question_id"] == "ask_onset"
+        assert question["sender_label"] == "Automated question from CuraAI"
+        assert question["display_text"] == f"Automated question from CuraAI: {question['text']}"
+        assert question["text"] == "When did these symptoms first start? An approximate date is fine."
         assert k.controller.get_outbox(None).body["follow_ups"] == []                # drained
 
         reply = k.controller.post_message(body("p2", text=PATIENTS["p2"]["reply"], message_id="p2-2",

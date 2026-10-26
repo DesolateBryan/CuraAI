@@ -32,6 +32,9 @@ def test_ehr_and_drug_ports_have_no_write_shaped_methods():
         assert not [n for n in names if any(w in n for w in write_words)], port.__name__
 
 
-def test_outbound_follow_up_carries_a_catalog_question_id():
+def test_outbound_follow_up_carries_a_catalog_question_id_and_a_required_automated_label():
     fields = set(OutboundFollowUp.__dataclass_fields__)
-    assert fields == {"patient_id", "question_id", "text"}
+    assert fields == {"patient_id", "question_id", "text", "sender_label"}
+    import pytest
+    with pytest.raises(ValueError):
+        OutboundFollowUp("p1", "ask_onset", "When did these symptoms first start?", "  ")
