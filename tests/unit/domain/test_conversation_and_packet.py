@@ -5,6 +5,7 @@ import pytest
 from curaai.domain.case_budget import CaseLimits
 from curaai.domain.conversation import Conversation, ConversationState, IncompleteReason, NextStep
 from curaai.domain.errors import InvalidConversationTransition
+from curaai.domain.lookback import LookbackWindow
 from curaai.domain.sick_message import SickMessage
 from curaai.domain.symptom_report import SymptomReport
 from curaai.domain.timeline import PacketStatus, ReviewPacket, Section, TimelineEntry
@@ -13,6 +14,7 @@ from curaai.domain.values import MessageId, MissingField, Origin, PatientId, Que
 TZ = timezone(timedelta(hours=-4))
 T0 = datetime(2026, 10, 16, 8, 15, tzinfo=TZ)
 BOTH = frozenset({MissingField.ONSET, MissingField.TREND})
+WIN = LookbackWindow(date(2026, 9, 25), date(2026, 10, 16))
 
 
 def msg(i=1, at=T0, text="I feel dizzy"):
@@ -86,13 +88,21 @@ def test_messages_only_packet_has_no_chart_rows_and_keeps_the_banner():
 def test_prefetch_without_onset_is_only_allowed_as_ai_fallback():
     ready = Conversation.start(msg()).mark_ready()
     with pytest.raises(ValueError):
-        ReviewPacket.prefetched(ready, ())          # AI still on, onset unknown: refused
-    packet = ReviewPacket.prefetched(Conversation.start(msg()).disable_ai().mark_ready(), ())
+        ReviewPacket.prefetched(ready, WIN, ())          # AI still on, onset unknown: refused
+    packet = ReviewPacket.prefetched(Conversation.start(msg()).disable_ai().mark_ready(), WIN, ())
     assert packet.incomplete_reason is IncompleteReason.AI_UNAVAILABLE and packet.ai_fallback
 
 
 def test_banner_cannot_be_switched_off():
     conv = Conversation.start(msg()).with_report(SymptomReport(onset=date(2026, 10, 5), trend=Trend.UNCHANGED))
-    good = ReviewPacket.prefetched(conv.mark_ready(), ())
+    good = ReviewPacket.prefetched(conv.mark_ready(), WIN, ())
     with pytest.raises(ValueError):
         ReviewPacket(**{**good.__dict__, "requires_in_person_verification": False})
+
+
+def test_prefetched_packet_must_record_the_window_it_searched():
+    conv = Conversation.start(msg()).with_report(SymptomReport(onset=date(2026, 10, 5), trend=Trend.UNCHANGED))
+    good = ReviewPacket.prefetched(conv.mark_ready(), WIN, ())
+    assert good.window == WIN
+    with pytest.raises(ValueError):
+        ReviewPacket(**{**good.__dict__, "window": None})

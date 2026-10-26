@@ -31,6 +31,8 @@ class ReviewResponse:
     status: str                   # PacketStatus value
     incomplete_reason: str | None
     anchor_date: date
+    window_start: date | None      # None when no chart pull ran
+    window_end: date | None
     onset: date | None
     onset_is_approx: bool
     trend: str | None

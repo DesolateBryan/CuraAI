@@ -14,6 +14,7 @@ from curaai.domain.conversation import Conversation, ConversationState, Incomple
 from curaai.domain.completeness import CompletenessPolicy
 from curaai.domain.drug_info import DrugInfo
 from curaai.domain.errors import MissingSourceReference
+from curaai.domain.lookback import LookbackWindow
 from curaai.domain.sick_message import SickMessage
 from curaai.domain.symptom_report import SymptomReport
 from curaai.domain.values import ChartItemKind, Flag, ItemId, Origin, PatientId
@@ -115,10 +116,13 @@ class ReviewPacket:
     incomplete_reason: IncompleteReason | None = None
     ai_fallback: bool = False
     rejected_item_count: int = 0
+    window: LookbackWindow | None = None           # the range actually searched; None = no pull
     requires_in_person_verification: bool = True   # ADR-006 / ADR-009 banner, always on
 
     def __post_init__(self) -> None:
         complete = CompletenessPolicy.is_complete(self.report)
+        if (self.status is PacketStatus.PREFETCHED) != (self.window is not None):
+            raise ValueError("a pre-fetched packet records its window; a messages-only packet has none")
         if self.status is PacketStatus.MESSAGES_ONLY:
             if self.incomplete_reason not in (IncompleteReason.TIMED_OUT, IncompleteReason.FOLLOW_UPS_EXHAUSTED):
                 raise ValueError("a messages-only packet must say why it is incomplete")
@@ -147,8 +151,8 @@ class ReviewPacket:
         )
 
     @classmethod
-    def prefetched(cls, conversation: Conversation, chart_entries: tuple[TimelineEntry, ...],
-                   rejected_item_count: int = 0) -> "ReviewPacket":
+    def prefetched(cls, conversation: Conversation, window: LookbackWindow,
+                   chart_entries: tuple[TimelineEntry, ...], rejected_item_count: int = 0) -> "ReviewPacket":
         if conversation.state is not ConversationState.READY:
             raise ValueError("pre-fetched packets are built for cases that are READY")
         anchor = conversation.anchor_date
@@ -159,7 +163,7 @@ class ReviewPacket:
             status=PacketStatus.PREFETCHED, anchor_date=anchor, report=conversation.report,
             entries=messages + chart_entries,
             incomplete_reason=None if complete else IncompleteReason.AI_UNAVAILABLE,
-            ai_fallback=conversation.ai_disabled, rejected_item_count=rejected_item_count,
+            ai_fallback=conversation.ai_disabled, rejected_item_count=rejected_item_count, window=window,
         )
 
     def entries_in(self, section: Section) -> tuple[TimelineEntry, ...]:
