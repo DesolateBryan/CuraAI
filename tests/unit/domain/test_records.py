@@ -73,3 +73,11 @@ def test_stopped_medication_is_never_active_even_without_an_end_date():
 def test_only_medications_can_be_stopped():
     with pytest.raises(ValueError):
         med(date(2026, 9, 22), kind=ChartItemKind.LAB, stopped=True)
+
+
+def test_boxed_warning_is_kept_and_listed_first():
+    from curaai.domain.timeline import TimelineEntry
+    info = DrugInfo(drug_name="x", source_ref="openfda:spl/x@1", adverse_text="Nausea",
+                    boxed_warning_text="WARNING: serious risk", contraindications_text="Angioedema")
+    titles = [e.title for e in TimelineEntry.from_drug_info(info)]
+    assert titles == ["x: Boxed warning", "x: Contraindications", "x: Adverse reactions"]

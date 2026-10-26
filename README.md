@@ -19,7 +19,7 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **EHR boundary built** (`fhir_to_chart_items`, `MockEpicAdapter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
+| 3 Interface adapters | `src/curaai/adapters` | **EHR and drug boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
 | 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
 
 ## Quick start
@@ -67,6 +67,7 @@ tests/
   fakes/                  fake EHR, drug DB, 4 model ports, messaging, stores, clock
   fixtures/mockchart.py   synthetic MockChart patients (no real PHI)
   fixtures/fhir/          FHIR bundles captured from the real MockChart page (+ capture.py)
+  fixtures/openfda/       openFDA-shaped response with SYNTHETIC label text (+ capture.py for a real one)
   unit/                   domain, application, dependency-rule tests
 ```
 
@@ -106,6 +107,10 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **Records that fail a check are dropped, audited and counted.** This covers records with no source and records outside the window. The physician sees `rejected_item_count`.
 - **Stopped medications carry a `stopped` flag.** MockChart's FHIR marks a discontinued med `status: "stopped"` but gives no end date. A stopped med is never treated as current. Because its stop date is unknown, it doesn't count as a change in the window either; the new dose's own row shows the change. This is one of the gaps ADR-005 says to watch for, and real Epic data should give end dates.
 - **The FHIR mapper never hides a bad record.** A resource with no `id` gets an empty `source_ref`, so the core rejects it and counts it. Other patients' resources and `entered-in-error` entries are dropped at the adapter.
+- **Drug records carry the boxed warning and contraindications**, as well as class, adverse reactions and interactions. A boxed warning is listed first.
+- **openFDA text is never truncated.** The MockChart page trims labels to 900 characters for display; the backend keeps the whole label, and the presenter decides layout.
+- **openFDA must match the drug name exactly** (generic or brand). Phrase search also returns combination products, so a near miss counts as "not found". Chart names like "Albuterol HFA" are searched as written; mapping them to canonical names is terminology work (deferred).
+- **The mock drug list is captured from the page** (`adapters/drug/mockchart_drugs.json`), including its interaction table, so the backend and the page agree.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -116,7 +121,7 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 
 ## Remaining work (Ring 3 → Ring 4)
 
-~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → `MockDrugAdapter` / `OpenFdaAdapter`
+~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → ~~`MockDrugAdapter` / `OpenFdaAdapter`~~ (done)
 → `ReviewPresenter` → `JsonlAuditLog` / `InMemoryConversationStore` → model
 adapters + `GatewayClient` + logging/CostGuard decorators → FastAPI router →
 `app/main.py` → the MockChart page bridge.

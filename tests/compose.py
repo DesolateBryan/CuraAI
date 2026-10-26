@@ -7,6 +7,7 @@ drive the system through PipelineTrigger, never through UI selectors.
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from curaai.application.ports.drug_db_port import DrugDbPort
 from curaai.application.ports.ehr_port import EhrPort
 from curaai.application.ports.model_ports import (
     ExtractSymptomsPort, MatchFlagsPort, PickRelevantItemsPort, SelectFollowUpPort,
@@ -30,7 +31,7 @@ class Harness:
     trigger: PipelineTrigger
     clock: FixedClock
     ehr: EhrPort
-    drug_db: FakeDrugDb
+    drug_db: DrugDbPort
     extractor: ExtractSymptomsPort
     selector: SelectFollowUpPort
     picker: PickRelevantItemsPort
@@ -44,10 +45,10 @@ class Harness:
 
 def build(*, extractor: ExtractSymptomsPort | None = None, selector: SelectFollowUpPort | None = None,
           picker: PickRelevantItemsPort | None = None, flagger: MatchFlagsPort | None = None,
-          ehr: EhrPort | None = None, limits: CaseLimits = CaseLimits(), now: datetime = NOW) -> Harness:
+          ehr: EhrPort | None = None, drug_db: DrugDbPort | None = None, limits: CaseLimits = CaseLimits(), now: datetime = NOW) -> Harness:
     clock = FixedClock(now)
     ehr = ehr or FakeEhr({pid: chart_records(pid) for pid in PATIENTS})
-    drug_db = FakeDrugDb(drug_records())
+    drug_db = drug_db or FakeDrugDb(drug_records())
     extractor = extractor or FakeExtractSymptoms()
     selector = selector or FakeSelectFollowUp()
     picker = picker or FakePickRelevantItems()
