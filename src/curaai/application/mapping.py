@@ -106,6 +106,8 @@ def review_response_from(packet: ReviewPacket, catalog: SymptomCatalog) -> Revie
         status=packet.status.value,
         incomplete_reason=packet.incomplete_reason.value if packet.incomplete_reason else None,
         anchor_date=packet.anchor_date,
+        window_start=packet.window.start if packet.window else None,
+        window_end=packet.window.end if packet.window else None,
         onset=report.onset,
         onset_is_approx=report.onset_is_approx,
         trend=report.trend.value if report.trend else None,

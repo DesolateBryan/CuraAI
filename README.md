@@ -19,7 +19,7 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **EHR and drug boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
+| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
 | 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
 
 ## Quick start
@@ -89,7 +89,13 @@ tests/
    It can mark relevant rows, flag medications, and add up to 5 extra drug
    lookups, which go in a separately labeled section.
 5. **AssembleReviewPacket** builds the packet and passes a plain DTO to
-   `ReviewOutputPort`. The presenter, not built yet, formats it.
+   `ReviewOutputPort`. **ReviewPresenter** turns it into a `ReviewView` of
+   display-ready strings. The view only loops, escapes and fills slots.
+
+Example of the physician's screen (synthetic MockChart patient):
+[`docs/samples/ellison_review.html`](docs/samples/ellison_review.html)
+
+![Sample review](docs/samples/ellison_review.png)
 
 If the model fails, goes over its cap, or gives an answer the validator
 rejects, AI switches off for that case and the fixed pull still runs.
@@ -111,6 +117,8 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **openFDA text is never truncated.** The MockChart page trims labels to 900 characters for display; the backend keeps the whole label, and the presenter decides layout.
 - **openFDA must match the drug name exactly** (generic or brand). Phrase search also returns combination products, so a near miss counts as "not found". Chart names like "Albuterol HFA" are searched as written; mapping them to canonical names is terminology work (deferred).
 - **The mock drug list is captured from the page** (`adapters/drug/mockchart_drugs.json`), including its interaction table, so the backend and the page agree.
+- **The presenter owns every display choice.** It fixes the section order; rows run chronologically against onset; and it does the date and offset wording ("17 days before onset"), the "Patient-reported" labels, the approximate-onset wording and the always-on banner. It also writes the notices for incomplete cases, the AI fallback and withheld records. It never edits row text. Current medications show "Since <date>" without an offset.
+- **The review packet records the window it searched**, so the doctor sees the exact range rather than the presenter recomputing a business rule.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -122,6 +130,6 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 ## Remaining work (Ring 3 → Ring 4)
 
 ~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → ~~`MockDrugAdapter` / `OpenFdaAdapter`~~ (done)
-→ `ReviewPresenter` → `JsonlAuditLog` / `InMemoryConversationStore` → model
+→ ~~`ReviewPresenter`~~ (done) → `JsonlAuditLog` / `InMemoryConversationStore` → model
 adapters + `GatewayClient` + logging/CostGuard decorators → FastAPI router →
 `app/main.py` → the MockChart page bridge.

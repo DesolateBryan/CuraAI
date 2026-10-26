@@ -28,7 +28,8 @@ class AssembleReviewPacket:
         if prefetch is None:
             packet = ReviewPacket.messages_only(conversation)
         else:
-            packet = ReviewPacket.prefetched(conversation, prefetch.entries, prefetch.rejected_item_count)
+            packet = ReviewPacket.prefetched(conversation, prefetch.window, prefetch.entries,
+                                         prefetch.rejected_item_count)
         self._output.present(review_response_from(packet, self._catalog))
         self._audit(ACTOR, "review_packet_delivered", packet.case_id, status=packet.status.value,
                     rows=len(packet.entries), ai_fallback=packet.ai_fallback,

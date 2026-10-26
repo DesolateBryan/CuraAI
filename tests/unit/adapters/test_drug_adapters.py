@@ -132,3 +132,22 @@ def test_pipeline_with_real_ehr_and_drug_adapters_for_whitaker():
     ai_rows = [r for r in packet.rows if r.section == "ai_suggested_lookups"]
     assert {r.title.split(":")[0] for r in ai_rows} == {"omeprazole"}
     assert packet.rejected_item_count == 0
+
+
+def test_full_stack_review_for_ellison_renders_through_the_real_presenter():
+    from curaai.adapters.presenters import InMemoryReviewSink, ReviewPresenter, render_review_html
+    from tests.fakes import FakeMatchFlags
+    sink = InMemoryReviewSink()
+    h = build(
+        ehr=MockEpicAdapter(InMemoryBundleSource(fhir_bundles()), api_key="mock-curaai-key-0000"),
+        drug_db=mock(),
+        extractor=FakeExtractSymptoms(SymptomExtraction(("cough",), date(2026, 10, 9), True, "worsening")),
+        flagger=FakeMatchFlags({"Lisinopril": "possible_adverse_effect"}),
+        review_output=ReviewPresenter(sink),
+    )
+    h.trigger.on_patient_message(inbound("p1"))
+
+    (view,) = sink.views.values()
+    meds = next(s for s in view.sections if s.key == "medication_changes").rows
+    assert [(m.date, m.offset, m.title) for m in meds] == [("Sep 22, 2026", "17 days before onset", "Lisinopril")]
+    assert "Dry cough, hyperkalemia, angioedema, dizziness" in render_review_html(view)
