@@ -17,7 +17,7 @@ def by_id(patient_id):
 
 def test_maps_meds_labs_and_encounters_and_leaves_demographics_and_messages_behind():
     records = fhir_to_chart_items(BUNDLES["p1"], "p1").records
-    assert sorted(r.kind for r in records) == ["encounter"] * 3 + ["lab"] * 4 + ["medication"] * 4
+    assert sorted(r.kind for r in records) == ["encounter"] * 4 + ["lab"] * 4 + ["medication"] * 5
     assert not [r for r in records if "Ellison" in r.detail or "4821307" in r.detail]   # no Patient data
     assert not [r for r in records if "cough" in r.detail]                              # no Communication text
 
@@ -70,7 +70,7 @@ def test_entered_in_error_is_excluded_and_unreadable_resources_are_counted():
     next(r for r in resources if r["resourceType"] == "Observation")["effectiveDateTime"] = "not a date"
     mapping = fhir_to_chart_items(bundle, "p1")
     assert (mapping.skipped_entered_in_error, mapping.skipped_unreadable) == (1, 1)
-    assert len(mapping.records) == 9
+    assert len(mapping.records) == 11
 
 
 def test_standard_fhir_shapes_beyond_the_mock_are_understood():

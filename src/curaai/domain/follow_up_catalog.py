@@ -64,7 +64,8 @@ DEFAULT_FOLLOW_UP_CATALOG = FollowUpCatalog((
     FollowUpQuestion(
         QuestionId("ask_trend"),
         frozenset({MissingField.TREND}),
-        "Since they started, have your symptoms gotten better, gotten worse, or stayed about the same?",
+        # Worded without "start"/"when" so it reads as a trend question on its own
+        "Have your symptoms been getting better, getting worse, or staying about the same?",
     ),
     FollowUpQuestion(
         QuestionId("ask_onset_and_trend"),

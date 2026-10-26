@@ -10,14 +10,15 @@ requires-python = ">=3.12"
 dependencies = []            # Rings 1-2 use the standard library only
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "import-linter>=2"]
-web = ["fastapi>=0.110", "uvicorn>=0.29", "pydantic>=2"]   # Ring 3/4 only, later pass
+dev = ["pytest>=8", "import-linter>=2", "httpx>=0.27"]      # httpx: FastAPI TestClient
+web = ["fastapi>=0.110", "uvicorn>=0.29", "tzdata; sys_platform == 'win32'"]   # Ring 3/4 only
+bedrock = ["boto3>=1.34"]                                  # only for CURAAI_MODEL_BACKEND=bedrock
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-curaai = ["adapters/drug/*.json"]
+curaai = ["adapters/drug/*.json", "adapters/web/static/*.js"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]

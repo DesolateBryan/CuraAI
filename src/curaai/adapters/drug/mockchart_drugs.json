@@ -70,6 +70,10 @@
    "class": "Antihistamine",
    "adverse": "Drowsiness"
   },
+  "amlodipine": {
+   "class": "Calcium channel blocker",
+   "adverse": "Ankle swelling, flushing, dizziness"
+  },
   "amoxicillin": {
    "class": "Penicillin antibiotic",
    "adverse": "Rash, diarrhea",

@@ -19,8 +19,8 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`, `JsonlAuditLog`, `InMemoryConversationStore`, the four model adapters, `ModelGateway`, `CostGuard`, logging decorators). Only the web router and `app/main.py` remain. Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
-| 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
+| 3 Interface adapters | `src/curaai/adapters` | **Built and tested**: EHR (`MockEpicAdapter`), drug DB (`MockDrugAdapter`, `OpenFdaAdapter`), model (`ModelGateway`, Bedrock transport, `CostGuard`, four adapters), observability, presenter, persistence, web controller + FastAPI routes + page bridge |
+| 4 Frameworks, composition root | `src/curaai/app/main.py` | **Built**: `Config.from_env`, `build_container`, `build_app`, Uvicorn |
 
 ## Quick start
 
@@ -34,8 +34,36 @@ pytest                               # unit tests, all offline, fixed clock, fak
 lint-imports                         # Dependency Rule contracts (pyproject.toml)
 ```
 
-No environment variables are needed for the tests. `.env.example` lists what
-`app/main.py` will read once Ring 4 is built. Never commit a real `.env`.
+No environment variables are needed for the tests. The FastAPI route test is skipped
+unless the `web` extra is installed (`pip install -e ".[dev,web]"`).
+
+## Run the demo with MockChart
+
+No cloud account is needed. With no model backend, CuraAI runs its ADR-011 fallback:
+it still pulls the fixed 3-week chart history, and the review says AI screening was unavailable.
+
+```bash
+pip install -e ".[web]"
+cp .env.example .env                 # Windows: copy .env.example .env
+python -m curaai.app.main
+```
+
+Then open **http://127.0.0.1:8000/mockchart**. The backend serves the team's MockChart
+page with a small bridge script added (the HTML file itself is never edited). The bridge:
+
+1. sends every patient message, with that patient's FHIR bundle, to CuraAI,
+2. delivers CuraAI's follow-up questions into the patient's thread, where MockChart's
+   simulated patient answers them,
+3. shows a **CuraAI** panel (bottom right) with an **Open review** button per patient.
+
+To use a real model, set `CURAAI_MODEL_BACKEND=bedrock` and `CURAAI_BEDROCK_MODEL_ID`, then
+`pip install -e ".[web,bedrock]"`. AWS credentials come from your normal AWS configuration.
+**Synthetic data only** until the BAA and retention policy exist (ADR-006).
+
+![Follow-up thread](docs/samples/mockchart_follow_up_thread.png)
+![Review inside MockChart](docs/samples/mockchart_review_overlay.png)
+
+Never commit a real `.env`.
 
 ## Layout
 
@@ -126,6 +154,12 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **Parsers don't judge values.** A prompt parser only refuses text that isn't a JSON object. Wrong types, unknown ids and injected text pass through to the core's `ModelOutputValidator`, so every rejection is decided and audited in one place.
 - **`CostGuard` lives in `adapters/model`**, not observability, because it wraps `GatewayClient` and adapter packages never import each other. It enforces the per-case dollar cap and a daily budget. Ring 2 already enforces the call, lookup and follow-up caps. Tripping on a spike in failed validations is deferred until the evaluation run gives a threshold.
 - **Metrics come from the audit log** (`case_metrics`, ADR-008), so the numbers can never disagree with what auditors see.
+- **The web layer is split for testing.** `WebController` makes every HTTP decision (request checks, status codes, response shapes) with no framework imported. The FastAPI routes each make one call to it. Collaborators are injected as small Protocols, so the web package imports no other adapter.
+- **The backend serves MockChart at `/mockchart` with the bridge added**, so the page and API share an origin (no CORS) and the team's HTML file stays untouched. The raw FHIR bundle stops at the EHR adapter's bundle source.
+- **Follow-up questions reach the page through an outbox** that the bridge polls. In MockChart they show up as messages from Dr. Whitfield, because the mock only has a doctor-send function. That fits ADR-009 ("replies go through the physician's own EHR session").
+- **`CURAAI_MODEL_BACKEND=none` is a supported mode.** Every model call fails cleanly and the fixed chart pull still runs, so the demo needs no AWS account.
+- **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).
+- **MockChart test data was re-captured** after the team added amlodipine (stopped Aug 18) and an Aug 18 visit to Ellison. The parity test caught the drift.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -133,10 +167,15 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 1. **Urgent symptoms.** Nothing in the briefs fast-tracks something like chest pain radiating to the arm (MockChart patient p5). Today that message would be screened like any other. Do we need a red-flag rule that skips follow-ups and alerts the physician right away?
 2. **Catalog sign-off.** Both catalogs are drafts and need a clinician to approve them (ADR-009).
 3. **A message that arrives while a case is being processed** opens a new case. Is that acceptable?
+4. **The model-call cap of 6 is tight.** In the live MockChart run, Whitaker's case (two follow-ups) used all 6 calls: three readings, two question picks and one row pick. So the medication-flag step was skipped and the review said AI was switched off partway. ADR-011 says to tune the caps; this is the first evidence. Raise to 8, or don't count question picks?
+5. **Follow-up questions appear as messages from Dr. Whitfield** in MockChart. Should the real Epic integration label them as automated CuraAI questions?
 
-## Remaining work (Ring 3 → Ring 4)
+## Remaining work
 
-~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → ~~`MockDrugAdapter` / `OpenFdaAdapter`~~ (done)
-→ ~~`ReviewPresenter`~~ (done) → ~~`JsonlAuditLog` / `InMemoryConversationStore`~~ (done) → ~~model
-adapters + `GatewayClient` + logging/CostGuard decorators~~ (done) → FastAPI router →
-`app/main.py` → the MockChart page bridge.
+All four rings are built. What's left before a pilot:
+
+- **Real model:** choose the Bedrock model id and get pricing; build the synthetic evaluation set and run it (ADR-001, ADR-016).
+- **Name redaction:** add an NER step to the gateway before any real PHI (ADR-006).
+- **Persistence:** a database-backed conversation store so the 24-hour timeout survives restarts, and the Postgres audit store (ADR-017).
+- **Real Epic:** SMART on FHIR launch and an `EpicEhrAdapter` (ADR-017).
+- **Decisions:** the open questions above, starting with urgent symptoms.

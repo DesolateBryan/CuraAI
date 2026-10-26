@@ -54,3 +54,28 @@ def test_no_adapter_or_sdk_names_appear_in_the_inner_rings():
             identifiers |= {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
             identifiers |= {a.name for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
             assert not identifiers & set(forbidden), path
+
+
+def test_adapter_packages_never_import_each_other():
+    packages = sorted(p.name for p in (SRC / "adapters").iterdir() if p.is_dir() and not p.name.startswith("_"))
+    bad = []
+    for package in packages:
+        for file, names in _imports(f"adapters/{package}").items():
+            for name in names:
+                if name.startswith("curaai.adapters.") and name.split(".")[2] != package:
+                    bad.append(f"{file} -> {name}")
+    assert bad == []
+
+
+def test_only_main_imports_the_vendor_sdk_and_fastapi():
+    hits = []
+    for path in SRC.rglob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            mods = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                   [node.module] if isinstance(node, ast.ImportFrom) and node.module else []
+            for m in mods:
+                if m.split(".")[0] in ("boto3", "fastapi", "uvicorn"):
+                    hits.append((str(path.relative_to(SRC)), m.split(".")[0]))
+    allowed = {("app/main.py", "boto3"), ("app/main.py", "uvicorn"), ("adapters/web/routers.py", "fastapi")}
+    assert set(hits) <= allowed, set(hits) - allowed

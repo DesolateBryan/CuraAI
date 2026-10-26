@@ -17,7 +17,7 @@ fills slots. It never truncates, rewords, sorts, formats dates or decides labels
 Row TEXT is passed through untouched: the presenter never edits documented text.
 """
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from typing import Protocol
 
@@ -179,6 +179,11 @@ def _row(row: ReviewRow, anchor_name: str) -> ViewRow:
 
 def _empty_row() -> ViewRow:
     return ViewRow("", "", "", EMPTY_ROW_TEXT, "", "", "", "", "")
+
+
+def review_view_to_dict(view: ReviewView) -> dict:
+    """Plain JSON-ready dict for GET /api/reviews/{case_id}."""
+    return asdict(view)
 
 
 # ---- port implementation ------------------------------------------------------------------
