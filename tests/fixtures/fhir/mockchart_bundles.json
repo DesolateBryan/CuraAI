@@ -1,0 +1,1792 @@
+{
+ "today": "2026-10-16",
+ "patients": [
+  {
+   "id": "p1",
+   "name": "Ellison, Margaret R.",
+   "mrn": "4821307",
+   "onset": "2026-10-09"
+  },
+  {
+   "id": "p2",
+   "name": "Whitaker, Darnell J.",
+   "mrn": "5130942",
+   "onset": "2026-10-05"
+  },
+  {
+   "id": "p3",
+   "name": "Raman, Priya S.",
+   "mrn": "5309176",
+   "onset": "2026-10-09"
+  },
+  {
+   "id": "p4",
+   "name": "Castillo, Mateo A.",
+   "mrn": "6042851",
+   "onset": "2026-10-14"
+  },
+  {
+   "id": "p5",
+   "name": "Boateng, Kwame O.",
+   "mrn": "6177403",
+   "onset": "2026-10-16"
+  },
+  {
+   "id": "p6",
+   "name": "Alvarez, Sofia N.",
+   "mrn": "6298815",
+   "onset": "2026-10-02"
+  }
+ ],
+ "bundles": {
+  "p1": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p1",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "4821307"
+       }
+      ],
+      "name": [
+       {
+        "text": "Ellison, Margaret R."
+       }
+      ],
+      "gender": "female",
+      "birthDate": "1959-03-14"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p1-mr0",
+      "status": "stopped",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "medicationCodeableConcept": {
+       "text": "Lisinopril"
+      },
+      "dosageInstruction": [
+       {
+        "text": "20 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-02-10",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": [
+       {
+        "text": "Dose increased: home BP log elevated"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p1-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "medicationCodeableConcept": {
+       "text": "Lisinopril"
+      },
+      "dosageInstruction": [
+       {
+        "text": "40 mg PO daily"
+       }
+      ],
+      "authoredOn": "2026-09-22",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": [
+       {
+        "text": "Increased from 20 mg"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p1-mr2",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "medicationCodeableConcept": {
+       "text": "Metformin"
+      },
+      "dosageInstruction": [
+       {
+        "text": "1000 mg PO BID"
+       }
+      ],
+      "authoredOn": "2024-06-03",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p1-mr3",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "medicationCodeableConcept": {
+       "text": "Atorvastatin"
+      },
+      "dosageInstruction": [
+       {
+        "text": "40 mg PO nightly"
+       }
+      ],
+      "authoredOn": "2025-02-10",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p1-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Hemoglobin A1c"
+      },
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "effectiveDateTime": "2026-09-22",
+      "valueString": "7.4 %",
+      "referenceRange": [
+       {
+        "text": "4.0–5.6"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "H"
+       }
+      ],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p1-ob1",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Potassium"
+      },
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "effectiveDateTime": "2026-09-22",
+      "valueString": "4.6 mmol/L",
+      "referenceRange": [
+       {
+        "text": "3.5–5.1"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p1-ob2",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Creatinine"
+      },
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "effectiveDateTime": "2026-09-22",
+      "valueString": "0.92 mg/dL",
+      "referenceRange": [
+       {
+        "text": "0.60–1.10"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p1-ob3",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "LDL cholesterol"
+      },
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "effectiveDateTime": "2026-07-14",
+      "valueString": "88 mg/dL",
+      "referenceRange": [
+       {
+        "text": "<100"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p1-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Ophthalmology"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "period": {
+       "start": "2026-09-29"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. L. Okafor"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Diabetic eye exam. No retinopathy. Return 12 months."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p1-en1",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Office visit – Primary Care"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "period": {
+       "start": "2026-09-22"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. S. Whitfield"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "BP 148/92, home log elevated. Increase lisinopril to 40 mg daily. Recheck BMP in 2 weeks."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p1-en2",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Cardiology"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "period": {
+       "start": "2026-06-10"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. P. Anand"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Stable HTN. Continue current regimen. Echo normal."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p1-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "sent": "2026-10-16T07:42:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "Hi Dr. Whitfield, I've had a dry, tickly cough that started around October 9th. It was mild at first but it's getting worse, especially at night. No fever. Should I be worried?"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p2": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p2",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "5130942"
+       }
+      ],
+      "name": [
+       {
+        "text": "Whitaker, Darnell J."
+       }
+      ],
+      "gender": "male",
+      "birthDate": "1981-07-22"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p2-mr0",
+      "status": "stopped",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "medicationCodeableConcept": {
+       "text": "Sertraline"
+      },
+      "dosageInstruction": [
+       {
+        "text": "50 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-11-04",
+      "requester": {
+       "display": "Dr. M. Castellano"
+      },
+      "note": [
+       {
+        "text": "Partial response; increased"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p2-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "medicationCodeableConcept": {
+       "text": "Sertraline"
+      },
+      "dosageInstruction": [
+       {
+        "text": "100 mg PO daily"
+       }
+      ],
+      "authoredOn": "2026-10-01",
+      "requester": {
+       "display": "Dr. M. Castellano"
+      },
+      "note": [
+       {
+        "text": "Increased from 50 mg"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p2-mr2",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "medicationCodeableConcept": {
+       "text": "Omeprazole"
+      },
+      "dosageInstruction": [
+       {
+        "text": "20 mg PO daily"
+       }
+      ],
+      "authoredOn": "2024-03-18",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p2-mr3",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "medicationCodeableConcept": {
+       "text": "Cyclobenzaprine"
+      },
+      "dosageInstruction": [
+       {
+        "text": "10 mg PO TID PRN spasm"
+       }
+      ],
+      "authoredOn": "2026-09-28",
+      "requester": {
+       "display": "Dr. K. Brandt"
+      },
+      "note": [
+       {
+        "text": "Lumbar flare"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p2-mr4",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "medicationCodeableConcept": {
+       "text": "Ibuprofen"
+      },
+      "dosageInstruction": [
+       {
+        "text": "600 mg PO q8h PRN pain"
+       }
+      ],
+      "authoredOn": "2026-09-28",
+      "requester": {
+       "display": "Dr. K. Brandt"
+      },
+      "note": [
+       {
+        "text": "Take with food"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p2-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Sodium"
+      },
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "effectiveDateTime": "2026-10-08",
+      "valueString": "134 mmol/L",
+      "referenceRange": [
+       {
+        "text": "135–145"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "L"
+       }
+      ],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p2-ob1",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Sodium"
+      },
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "effectiveDateTime": "2026-09-14",
+      "valueString": "139 mmol/L",
+      "referenceRange": [
+       {
+        "text": "135–145"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p2-ob2",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Creatinine"
+      },
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "effectiveDateTime": "2026-09-14",
+      "valueString": "1.0 mg/dL",
+      "referenceRange": [
+       {
+        "text": "0.7–1.3"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p2-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Psychiatry"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "period": {
+       "start": "2026-10-01"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. M. Castellano"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "GAD, partial response to sertraline 50 mg. Increase to 100 mg daily. Follow up in 4 weeks."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p2-en1",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Orthopedics"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "period": {
+       "start": "2026-09-28"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. K. Brandt"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Lumbar radiculopathy flare. Start cyclobenzaprine 10 mg TID PRN and ibuprofen 600 mg PRN. PT referral placed."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p2-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p2"
+      },
+      "sent": "2026-10-16T08:15:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "I've been feeling dizzy and kind of nauseous lately. Can you tell me what's going on?"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p3": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p3",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "5309176"
+       }
+      ],
+      "name": [
+       {
+        "text": "Raman, Priya S."
+       }
+      ],
+      "gender": "female",
+      "birthDate": "1992-01-09"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p3-mr0",
+      "status": "stopped",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "medicationCodeableConcept": {
+       "text": "Levothyroxine"
+      },
+      "dosageInstruction": [
+       {
+        "text": "75 mcg PO daily"
+       }
+      ],
+      "authoredOn": "2023-05-12",
+      "requester": {
+       "display": "Dr. R. Lindqvist"
+      },
+      "note": [
+       {
+        "text": "TSH elevated; increased"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p3-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "medicationCodeableConcept": {
+       "text": "Levothyroxine"
+      },
+      "dosageInstruction": [
+       {
+        "text": "88 mcg PO daily"
+       }
+      ],
+      "authoredOn": "2026-09-18",
+      "requester": {
+       "display": "Dr. R. Lindqvist"
+      },
+      "note": [
+       {
+        "text": "Increased from 75 mcg"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p3-mr2",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "medicationCodeableConcept": {
+       "text": "Albuterol HFA"
+      },
+      "dosageInstruction": [
+       {
+        "text": "90 mcg, 2 puffs q4–6h PRN"
+       }
+      ],
+      "authoredOn": "2022-09-01",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p3-mr3",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "medicationCodeableConcept": {
+       "text": "Fluticasone HFA"
+      },
+      "dosageInstruction": [
+       {
+        "text": "110 mcg, 2 puffs BID"
+       }
+      ],
+      "authoredOn": "2024-01-20",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p3-mr4",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "medicationCodeableConcept": {
+       "text": "Ferrous sulfate"
+      },
+      "dosageInstruction": [
+       {
+        "text": "325 mg PO daily"
+       }
+      ],
+      "authoredOn": "2026-09-02",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": [
+       {
+        "text": "Separate from levothyroxine by 4 h"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p3-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "TSH"
+      },
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "effectiveDateTime": "2026-09-15",
+      "valueString": "8.2 mIU/L",
+      "referenceRange": [
+       {
+        "text": "0.4–4.0"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "H"
+       }
+      ],
+      "performer": [
+       {
+        "display": "LabCorp"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p3-ob1",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Free T4"
+      },
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "effectiveDateTime": "2026-09-15",
+      "valueString": "0.7 ng/dL",
+      "referenceRange": [
+       {
+        "text": "0.8–1.8"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "L"
+       }
+      ],
+      "performer": [
+       {
+        "display": "LabCorp"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p3-ob2",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Hemoglobin"
+      },
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "effectiveDateTime": "2026-09-02",
+      "valueString": "10.9 g/dL",
+      "referenceRange": [
+       {
+        "text": "12.0–15.5"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "L"
+       }
+      ],
+      "performer": [
+       {
+        "display": "LabCorp"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p3-ob3",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Ferritin"
+      },
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "effectiveDateTime": "2026-09-02",
+      "valueString": "9 ng/mL",
+      "referenceRange": [
+       {
+        "text": "15–150"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "L"
+       }
+      ],
+      "performer": [
+       {
+        "display": "LabCorp"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p3-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Endocrinology"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "period": {
+       "start": "2026-09-18"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. R. Lindqvist"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "TSH 8.2, free T4 low. Increase levothyroxine 75 to 88 mcg daily. Recheck TSH in 6–8 weeks."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p3-en1",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Office visit – Primary Care"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "period": {
+       "start": "2026-09-02"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. S. Whitfield"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Fatigue. Labs show iron deficiency anemia. Start ferrous sulfate 325 mg daily."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p3-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p3"
+      },
+      "sent": "2026-10-16T09:03:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "My heart has been racing and I feel shaky since last Friday. It comes and goes. Is this serious?"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p4": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p4",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "6042851"
+       }
+      ],
+      "name": [
+       {
+        "text": "Castillo, Mateo A."
+       }
+      ],
+      "gender": "male",
+      "birthDate": "2019-04-02"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p4-mr0",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p4"
+      },
+      "medicationCodeableConcept": {
+       "text": "Albuterol HFA"
+      },
+      "dosageInstruction": [
+       {
+        "text": "90 mcg, 2 puffs q4h PRN wheeze"
+       }
+      ],
+      "authoredOn": "2023-11-10",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p4-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p4"
+      },
+      "medicationCodeableConcept": {
+       "text": "Cetirizine"
+      },
+      "dosageInstruction": [
+       {
+        "text": "5 mg PO daily, seasonal"
+       }
+      ],
+      "authoredOn": "2025-03-01",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p4-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Peak flow"
+      },
+      "subject": {
+       "reference": "Patient/p4"
+      },
+      "effectiveDateTime": "2026-09-20",
+      "valueString": "210 L/min",
+      "referenceRange": [
+       {
+        "text": ">80% personal best"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Office spirometry"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p4-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Office visit – Primary Care"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p4"
+      },
+      "period": {
+       "start": "2026-09-20"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. S. Whitfield"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Well child visit. Asthma well controlled, using albuterol <1x/week. Continue current plan."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p4-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p4"
+      },
+      "sent": "2026-10-16T10:05:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "Hi, this is Mateo's mom. He's had a barky cough and a bit of a fever since Wednesday. He's breathing ok but sounds hoarse. Should I bring him in?"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p5": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p5",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "6177403"
+       }
+      ],
+      "name": [
+       {
+        "text": "Boateng, Kwame O."
+       }
+      ],
+      "gender": "male",
+      "birthDate": "1967-11-30"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p5-mr0",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "medicationCodeableConcept": {
+       "text": "Clopidogrel"
+      },
+      "dosageInstruction": [
+       {
+        "text": "75 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-05-02",
+      "requester": {
+       "display": "Dr. P. Anand"
+      },
+      "note": [
+       {
+        "text": "Post-stent, continue 12 months minimum"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p5-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "medicationCodeableConcept": {
+       "text": "Metoprolol succinate"
+      },
+      "dosageInstruction": [
+       {
+        "text": "50 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-05-02",
+      "requester": {
+       "display": "Dr. P. Anand"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p5-mr2",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "medicationCodeableConcept": {
+       "text": "Atorvastatin"
+      },
+      "dosageInstruction": [
+       {
+        "text": "80 mg PO nightly"
+       }
+      ],
+      "authoredOn": "2025-05-02",
+      "requester": {
+       "display": "Dr. P. Anand"
+      },
+      "note": [
+       {
+        "text": "High intensity post-ACS"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p5-mr3",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "medicationCodeableConcept": {
+       "text": "Metformin"
+      },
+      "dosageInstruction": [
+       {
+        "text": "500 mg PO BID"
+       }
+      ],
+      "authoredOn": "2023-01-15",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p5-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Troponin I"
+      },
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "effectiveDateTime": "2026-10-16",
+      "valueString": "0.08 ng/mL",
+      "referenceRange": [
+       {
+        "text": "<0.04"
+       }
+      ],
+      "interpretation": [
+       {
+        "text": "H"
+       }
+      ],
+      "performer": [
+       {
+        "display": "STAT – hospital lab"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p5-ob1",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "ECG"
+      },
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "effectiveDateTime": "2026-10-16",
+      "valueString": "Sinus tachycardia, no acute ST changes",
+      "referenceRange": [
+       {
+        "text": ""
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Office 12-lead"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p5-ob2",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "LDL cholesterol"
+      },
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "effectiveDateTime": "2026-09-02",
+      "valueString": "62 mg/dL",
+      "referenceRange": [
+       {
+        "text": "<70"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p5-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Cardiology – PCI with drug-eluting stent, LAD"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "period": {
+       "start": "2026-05-02"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. P. Anand"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Successful PCI for 90% LAD stenosis. Dual antiplatelet therapy started."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p5-en1",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Office visit – Primary Care"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "period": {
+       "start": "2026-09-02"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. S. Whitfield"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Stable post-stent. Continue current regimen. A1c 6.8%."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p5-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p5"
+      },
+      "sent": "2026-10-16T11:20:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "I'm having chest tightness and pressure that started about an hour ago, radiating to my left arm. I feel short of breath and a little sweaty. I have my stent history. Should I call 911?"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "p6": {
+   "resourceType": "Bundle",
+   "type": "collection",
+   "entry": [
+    {
+     "resource": {
+      "resourceType": "Patient",
+      "id": "p6",
+      "identifier": [
+       {
+        "system": "urn:mockchart:mrn",
+        "value": "6298815"
+       }
+      ],
+      "name": [
+       {
+        "text": "Alvarez, Sofia N."
+       }
+      ],
+      "gender": "female",
+      "birthDate": "1998-08-17"
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p6-mr0",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "medicationCodeableConcept": {
+       "text": "Combined oral contraceptive"
+      },
+      "dosageInstruction": [
+       {
+        "text": "1 tab PO daily"
+       }
+      ],
+      "authoredOn": "2024-02-01",
+      "requester": {
+       "display": "Dr. L. Okafor"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p6-mr1",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "medicationCodeableConcept": {
+       "text": "Sumatriptan"
+      },
+      "dosageInstruction": [
+       {
+        "text": "50 mg PO PRN migraine, max 2/day"
+       }
+      ],
+      "authoredOn": "2024-02-01",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": []
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p6-mr2",
+      "status": "active",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "medicationCodeableConcept": {
+       "text": "Spironolactone"
+      },
+      "dosageInstruction": [
+       {
+        "text": "50 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-08-11",
+      "requester": {
+       "display": "Dr. L. Okafor"
+      },
+      "note": [
+       {
+        "text": "For PCOS-related acne/hirsutism"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p6-ob0",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Potassium"
+      },
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "effectiveDateTime": "2026-08-11",
+      "valueString": "4.1 mmol/L",
+      "referenceRange": [
+       {
+        "text": "3.5–5.1"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Observation",
+      "id": "p6-ob1",
+      "status": "final",
+      "category": [
+       {
+        "text": "laboratory"
+       }
+      ],
+      "code": {
+       "text": "Testosterone, total"
+      },
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "effectiveDateTime": "2026-08-11",
+      "valueString": "58 ng/dL",
+      "referenceRange": [
+       {
+        "text": "8–60"
+       }
+      ],
+      "interpretation": [],
+      "performer": [
+       {
+        "display": "Quest Diagnostics"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p6-en0",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Gynecology"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "period": {
+       "start": "2026-08-11"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. L. Okafor"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "PCOS follow-up. Continue OCP and spironolactone. Labs reassuring."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Communication",
+      "id": "p6-cm0",
+      "status": "completed",
+      "subject": {
+       "reference": "Patient/p6"
+      },
+      "sent": "2026-10-16T12:40:00",
+      "sender": {
+       "display": "Patient (patient-reported)"
+      },
+      "payload": [
+       {
+        "contentString": "I've been getting these headaches again, they're pretty bad. Can you help?"
+       }
+      ]
+     }
+    }
+   ]
+  }
+ }
+}

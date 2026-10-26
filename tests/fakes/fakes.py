@@ -46,7 +46,7 @@ class FakeEhr(EhrPort):
     def active_medications(self, query: ActiveMedicationQuery) -> tuple[ChartItemRecord, ...]:
         self.queries.append(query)
         return tuple(r for r in self._records.get(query.patient_id, ())
-                     if r.kind == "medication" and r.date <= query.on_date
+                     if r.kind == "medication" and not r.stopped and r.date <= query.on_date
                      and (r.end_date is None or r.end_date > query.on_date))
 
 
