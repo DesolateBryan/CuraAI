@@ -5,7 +5,9 @@ source_ref values match the ids the page's FHIR tab produces
 (MedicationRequest/p1-mr0, Observation/p1-ob0, Encounter/p1-en0, ...).
 """
 
+import json
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 from curaai.application.dto.drug import DrugRecord
 from curaai.application.dto.ehr import ChartItemRecord
@@ -89,7 +91,7 @@ def chart_records(patient_id: str) -> tuple[ChartItemRecord, ...]:
         records.append(ChartItemRecord(
             item_id=f"{patient_id}-mr{i}", kind="medication", date=_d(start), end_date=_d(end),
             title=name, detail=f"{sig} · {note}" if note else sig,
-            source_ref=f"MedicationRequest/{patient_id}-mr{i}", author=who))
+            source_ref=f"MedicationRequest/{patient_id}-mr{i}", author=who, stopped=end is not None))
     for i, (day, component, value, ref, flag, source) in enumerate(p["labs"]):
         records.append(ChartItemRecord(
             item_id=f"{patient_id}-ob{i}", kind="lab", date=_d(day), title=component,
@@ -118,3 +120,14 @@ def inbound(patient_id: str, text: str | None = None, sent_at: datetime | None =
 def all_chart_text(patient_id: str) -> set[str]:
     """Every verbatim detail string, so tests can prove none of it reached the model."""
     return {r.detail for r in chart_records(patient_id)}
+
+
+FHIR_CAPTURE = Path(__file__).parent / "fhir" / "mockchart_bundles.json"
+
+
+def fhir_bundles() -> dict[str, dict]:
+    """FHIR R4 bundles captured from the real MockChart page (window.MockEpic.connect(key).fhir(id)).
+
+    Regenerate with: python tests/fixtures/fhir/capture.py  (needs Node + Playwright)
+    """
+    return json.loads(FHIR_CAPTURE.read_text(encoding="utf-8"))["bundles"]

@@ -45,7 +45,7 @@ def chart_item_from(record: ChartItemRecord) -> ChartItem:
         item_id=ItemId(record.item_id), kind=ChartItemKind(record.kind), date=record.date,
         title=record.title, detail=record.detail, source_ref=record.source_ref,
         author=record.author, end_date=record.end_date, flag=record.flag,
-        code=record.code, code_system=record.code_system,
+        code=record.code, code_system=record.code_system, stopped=record.stopped,
     )
 
 

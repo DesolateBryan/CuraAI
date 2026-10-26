@@ -32,3 +32,4 @@ class ChartItemRecord:
     flag: str | None = None
     code: str | None = None
     code_system: str | None = None
+    stopped: bool = False         # FHIR status stopped/completed/cancelled

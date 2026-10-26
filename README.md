@@ -19,7 +19,7 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | Stubs (signatures fixed, bodies raise `NotImplementedError`) |
+| 3 Interface adapters | `src/curaai/adapters` | **EHR boundary built** (`fhir_to_chart_items`, `MockEpicAdapter`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
 | 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
 
 ## Quick start
@@ -66,6 +66,7 @@ tests/
   compose.py              test composition root (fakes + fixed clock)
   fakes/                  fake EHR, drug DB, 4 model ports, messaging, stores, clock
   fixtures/mockchart.py   synthetic MockChart patients (no real PHI)
+  fixtures/fhir/          FHIR bundles captured from the real MockChart page (+ capture.py)
   unit/                   domain, application, dependency-rule tests
 ```
 
@@ -103,6 +104,8 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **`ChartItemRecord` is the DTO name.** The M2 table calls the EHR DTO `ChartItem`, which clashes with the Ring 1 entity. This mirrors the existing `DrugRecord` / `DrugInfo` pair.
 - **Current medications are always pulled,** as well as changes inside the window, so interactions can be checked.
 - **Records that fail a check are dropped, audited and counted.** This covers records with no source and records outside the window. The physician sees `rejected_item_count`.
+- **Stopped medications carry a `stopped` flag.** MockChart's FHIR marks a discontinued med `status: "stopped"` but gives no end date. A stopped med is never treated as current. Because its stop date is unknown, it doesn't count as a change in the window either; the new dose's own row shows the change. This is one of the gaps ADR-005 says to watch for, and real Epic data should give end dates.
+- **The FHIR mapper never hides a bad record.** A resource with no `id` gets an empty `source_ref`, so the core rejects it and counts it. Other patients' resources and `entered-in-error` entries are dropped at the adapter.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -111,9 +114,9 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 2. **Catalog sign-off.** Both catalogs are drafts and need a clinician to approve them (ADR-009).
 3. **A message that arrives while a case is being processed** opens a new case. Is that acceptable?
 
-## Next pass (Ring 3 → Ring 4)
+## Remaining work (Ring 3 → Ring 4)
 
-`fhir_to_chart_items` mapper → `MockEpicAdapter` → `MockDrugAdapter` / `OpenFdaAdapter`
+~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → `MockDrugAdapter` / `OpenFdaAdapter`
 → `ReviewPresenter` → `JsonlAuditLog` / `InMemoryConversationStore` → model
 adapters + `GatewayClient` + logging/CostGuard decorators → FastAPI router →
 `app/main.py` → the MockChart page bridge.
