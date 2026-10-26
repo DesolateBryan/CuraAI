@@ -28,7 +28,7 @@ Meetings: Wednesdays right after class.
 - PR #3 (drug adapters): https://github.com/DesolateBryan/CuraAI/pull/3 (merged, reached `main` via #4)
 - PR #4 (drug adapters → `main`): https://github.com/DesolateBryan/CuraAI/pull/4 (merged)
 - PR #5 (review presenter): https://github.com/DesolateBryan/CuraAI/pull/5 (merged)
-- PR #6 (persistence): see the PR list (**open**, targets `main`)
+- PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
