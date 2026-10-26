@@ -29,6 +29,7 @@ Meetings: Wednesdays right after class.
 - PR #4 (drug adapters → `main`): https://github.com/DesolateBryan/CuraAI/pull/4 (merged)
 - PR #5 (review presenter): https://github.com/DesolateBryan/CuraAI/pull/5 (merged)
 - PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (**open**, targets `main`)
+- PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (**open**, targets `main`; built on #6, so merge #6 first)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -42,7 +43,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 |---|---|---|---|
 | 1 Entities | `src/curaai/domain` | Pure rules, stdlib only | **Done** |
 | 2 Use cases | `src/curaai/application` | Ports, DTOs, validator, 5 use cases | **Done** |
-| 3 Adapters | `src/curaai/adapters` | EHR, drug DB, model, presenter, stores | EHR, drug, presenter **done** (on `main`); audit log + conversation store **done** (PR #6); model adapters + web still stubs |
+| 3 Adapters | `src/curaai/adapters` | EHR, drug DB, model, presenter, stores | EHR, drug, presenter **done** (on `main`); audit log + conversation store **done** (PR #6); model adapters + gateway + cost guard **done** (PR #7); only web router + `main.py` left |
 | 4 Frameworks | `src/curaai/app/main.py` | Composition root, FastAPI, Uvicorn | Stub |
 
 **Dependency Rule:** imports only point inward. Domain imports nothing, application imports only domain, adapters never import each other, and only `app/main.py` (plus `tests/compose.py`) wires everything.
@@ -78,6 +79,11 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - The review packet now records the **window it searched**, so the doctor sees the exact range.
 - **Audit log = append-only JSONL file** for now (Postgres later). One line per event, fsync'd, schema version, no update/delete. **Patient message text is never written to it**, only ids, counts, reasons.
 - **Open cases live in memory**: a restart loses open cases and their 24 h timers. Build a database store when the timeout must survive restarts.
+- **Model gateway runs in-process** (ADR-001): redaction, prompt versions, pricing, audit, then a swappable vendor transport (**AWS Bedrock** first). Only `main.py` builds the boto3 client.
+- **Redaction** removes emails, phones, SSNs, URLs, 6+ digit IDs (MRNs); **keeps dates and doses**. Names are NOT removed yet (needs an NER model) and that is a gate before real PHI.
+- Prompt parsers only reject non-JSON; **the core validator judges every value**, so all rejections are audited in one place.
+- **CostGuard** ($0.25/case + daily budget) lives in `adapters/model` (adapters can't import each other). Tripping on a spike of failed validations is deferred until the eval run sets a threshold.
+- **Metrics are computed from the audit log** (`case_metrics`), so they always match what auditors see.
 
 ## Open questions for the team
 1. **Urgent symptoms**: nothing fast-tracks chest pain (MockChart p5). Add a red-flag rule?
@@ -89,7 +95,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest          # 125 tests, offline, fakes + fixed clock
+pytest          # 152 tests, offline, fakes + fixed clock
 lint-imports    # Dependency Rule check
 ```
 Re-capture FHIR test data from the MockChart page: `python tests/fixtures/fhir/capture.py`
@@ -99,13 +105,15 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 ## Next steps
 - [x] Merge PR #1 → #2 → #3 / #4 (core, EHR, drug adapters are on `main`)
 - [x] PR #5 retargeted to `main` and merged
-- [ ] Review + merge PR #6 (run real `pytest` + `lint-imports` first)
+- [ ] Review + merge PR #6, then PR #7 (run real `pytest` + `lint-imports` first)
 - [x] EHR adapter: FHIR mapper + `MockEpicAdapter` (PR #2)
 - [x] Drug DB adapters: `MockDrugAdapter`, `OpenFdaAdapter` (PR #3)
 - [ ] Record one real openFDA response and compare with the synthetic fixture
 - [x] `ReviewPresenter` + HTML view (PR #5)
 - [x] `JsonlAuditLog`, `InMemoryConversationStore` (PR #6)
-- [ ] Model adapters + `GatewayClient` + logging / `CostGuard` decorators
+- [x] Model adapters + `ModelGateway` + Bedrock transport + `CostGuard` + logging decorators + metrics (PR #7)
+- [ ] Pick the Bedrock model id + get real pricing (placeholders in tests)
+- [ ] Build the synthetic evaluation set and run it against the real model (ADR-016)
 - [ ] FastAPI router → `app/main.py` → MockChart page bridge
 - [ ] Decide the urgent-symptom question
 
@@ -114,3 +122,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: Pushed PR #3: `MockDrugAdapter` (page's drug list + interactions) and `OpenFdaAdapter` (exact-match, no truncation, label version in source_ref). Added boxed warning + contraindications to drug records. 97 tests passing.
 - **2026-10-26 (later)**: Pushed PR #5: `ReviewPresenter` (pure `present_review`), humble HTML view, sample review for Ellison in `docs/samples/`. Packet now carries the searched window. 113 tests passing. Core, EHR and drug work are merged to `main`.
 - **2026-10-26 (later)**: PR #5 merged to `main`. Pushed PR #6: `JsonlAuditLog` (append-only, fsync'd, no patient text) and `InMemoryConversationStore` (thread-safe), with contract tests that run the same checks on the fakes and the real adapters. 125 tests passing.
+- **2026-10-26 (later)**: Pushed PR #7 (model side): prompts + parsers for the 4 model ports, in-process `ModelGateway` (redaction, pricing, audit), `BedrockConverseTransport`, `CostGuard`, logging decorators, `case_metrics`. Fixed a redaction bug (an MRN at the end of a sentence slipped through). Full pipeline runs through the real model stack with only the vendor faked. 152 tests passing.

@@ -2,8 +2,9 @@
 
 build() will:
     1. read Config once from the environment (adapter choice, endpoints, keys; no secrets in repo)
-    2. construct the vendor SDK client  -> GatewayClient -> CostGuard
-    3. construct the four model adapters, each wrapped in its logging decorator
+    2. construct the vendor SDK client (boto3 bedrock-runtime) -> BedrockConverseTransport
+       -> ModelGateway (redaction, pricing, audit) -> CostGuard (adapters/model)
+    3. construct the four Gateway* model adapters, each wrapped in its Logged* decorator
     4. construct MockEpicAdapter (one config `if` selects EpicEhrAdapter later),
        OpenFdaAdapter or MockDrugAdapter, JsonlAuditLog, InMemoryConversationStore,
        SystemClock, ReviewPresenter, MockEpicMessagingAdapter

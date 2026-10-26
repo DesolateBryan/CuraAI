@@ -3,11 +3,11 @@
 from tests.fakes.fakes import (
     FakeDrugDb, FakeEhr, FakeExtractSymptoms, FakeMatchFlags, FakeMessaging,
     FakePickRelevantItems, FakeReviewOutput, FakeSelectFollowUp, FixedClock,
-    InMemoryAuditLog, InMemoryConversationStore,
+    InMemoryAuditLog, InMemoryConversationStore, ScriptedTransport,
 )
 
 __all__ = [
     "FakeDrugDb", "FakeEhr", "FakeExtractSymptoms", "FakeMatchFlags", "FakeMessaging",
     "FakePickRelevantItems", "FakeReviewOutput", "FakeSelectFollowUp", "FixedClock",
-    "InMemoryAuditLog", "InMemoryConversationStore",
+    "InMemoryAuditLog", "InMemoryConversationStore", "ScriptedTransport",
 ]

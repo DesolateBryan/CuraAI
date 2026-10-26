@@ -19,7 +19,7 @@ The physician makes every clinical decision.
 |---|---|---|
 | 1 Entities | `src/curaai/domain` | **Built and tested** |
 | 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`, `JsonlAuditLog`, `InMemoryConversationStore`). Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
+| 3 Interface adapters | `src/curaai/adapters` | **EHR, drug and review-output boundaries built** (`fhir_to_chart_items`, `MockEpicAdapter`, `MockDrugAdapter`, `OpenFdaAdapter`, `ReviewPresenter`, `JsonlAuditLog`, `InMemoryConversationStore`, the four model adapters, `ModelGateway`, `CostGuard`, logging decorators). Only the web router and `app/main.py` remain. Others are stubs (signatures fixed, bodies raise `NotImplementedError`) |
 | 4 Frameworks, composition root | `src/curaai/app` | Stub (wiring order documented in `main.py`) |
 
 ## Quick start
@@ -121,6 +121,11 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **The review packet records the window it searched**, so the doctor sees the exact range rather than the presenter recomputing a business rule.
 - **The audit log is an append-only JSONL file for the prototype** (Postgres later, ADR-017). One JSON line per event, flushed and fsync'd, with a schema version; there is no update or delete. Patient message text is never written to it, only ids, counts and reasons.
 - **Open cases are kept in memory.** A restart loses open cases and their 24-hour timers. The trigger for building a database-backed store is "the timeout must survive a restart".
+- **The model gateway runs in-process for now** (ADR-001). It does the PII redaction, prompt versioning, pricing and audit, and hands off to a swappable vendor transport. Bedrock's Converse API is the first transport. The boto3 client is built only in `app/main.py`, so nothing else imports a vendor SDK.
+- **Redaction removes** emails, phone numbers, SSNs, URLs and 6+ digit IDs (MRNs) before anything leaves. It **keeps** dates and doses, which the model has to read. Names are not removed yet: that needs an NER model, and it is a gate before any real PHI (ADR-006).
+- **Parsers don't judge values.** A prompt parser only refuses text that isn't a JSON object. Wrong types, unknown ids and injected text pass through to the core's `ModelOutputValidator`, so every rejection is decided and audited in one place.
+- **`CostGuard` lives in `adapters/model`**, not observability, because it wraps `GatewayClient` and adapter packages never import each other. It enforces the per-case dollar cap and a daily budget. Ring 2 already enforces the call, lookup and follow-up caps. Tripping on a spike in failed validations is deferred until the evaluation run gives a threshold.
+- **Metrics come from the audit log** (`case_metrics`, ADR-008), so the numbers can never disagree with what auditors see.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
 
 ## Open questions for the team
@@ -132,6 +137,6 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 ## Remaining work (Ring 3 → Ring 4)
 
 ~~`fhir_to_chart_items` mapper → `MockEpicAdapter`~~ (done) → ~~`MockDrugAdapter` / `OpenFdaAdapter`~~ (done)
-→ ~~`ReviewPresenter`~~ (done) → ~~`JsonlAuditLog` / `InMemoryConversationStore`~~ (done) → model
-adapters + `GatewayClient` + logging/CostGuard decorators → FastAPI router →
+→ ~~`ReviewPresenter`~~ (done) → ~~`JsonlAuditLog` / `InMemoryConversationStore`~~ (done) → ~~model
+adapters + `GatewayClient` + logging/CostGuard decorators~~ (done) → FastAPI router →
 `app/main.py` → the MockChart page bridge.
