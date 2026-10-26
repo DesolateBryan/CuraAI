@@ -52,7 +52,9 @@ def chart_item_from(record: ChartItemRecord) -> ChartItem:
 def drug_info_from(record: DrugRecord) -> DrugInfo:
     return DrugInfo(drug_name=record.drug_name, source_ref=record.source_ref,
                     class_text=record.class_text, adverse_text=record.adverse_text,
-                    interactions_text=record.interactions_text)
+                    interactions_text=record.interactions_text,
+                    boxed_warning_text=record.boxed_warning_text,
+                    contraindications_text=record.contraindications_text)
 
 
 # ---- conversation snapshots ----------------------------------------------
