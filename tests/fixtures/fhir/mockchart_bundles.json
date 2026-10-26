@@ -168,6 +168,34 @@
     },
     {
      "resource": {
+      "resourceType": "MedicationRequest",
+      "id": "p1-mr4",
+      "status": "stopped",
+      "intent": "order",
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "medicationCodeableConcept": {
+       "text": "Amlodipine"
+      },
+      "dosageInstruction": [
+       {
+        "text": "5 mg PO daily"
+       }
+      ],
+      "authoredOn": "2025-02-10",
+      "requester": {
+       "display": "Dr. S. Whitfield"
+      },
+      "note": [
+       {
+        "text": "Discontinued: ankle swelling"
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
       "resourceType": "Observation",
       "id": "p1-ob0",
       "status": "final",
@@ -358,6 +386,36 @@
      "resource": {
       "resourceType": "Encounter",
       "id": "p1-en2",
+      "status": "finished",
+      "type": [
+       {
+        "text": "Office visit – Primary Care"
+       }
+      ],
+      "subject": {
+       "reference": "Patient/p1"
+      },
+      "period": {
+       "start": "2026-08-18"
+      },
+      "participant": [
+       {
+        "individual": {
+         "display": "Dr. S. Whitfield"
+        }
+       }
+      ],
+      "reasonCode": [
+       {
+        "text": "Bilateral ankle swelling attributed to amlodipine. Discontinue amlodipine 5 mg. Continue lisinopril 20 mg."
+       }
+      ]
+     }
+    },
+    {
+     "resource": {
+      "resourceType": "Encounter",
+      "id": "p1-en3",
       "status": "finished",
       "type": [
        {

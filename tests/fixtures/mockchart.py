@@ -26,13 +26,15 @@ PATIENTS = {
         "meds": [["Lisinopril", "20 mg PO daily", "2025-02-10", "2026-09-22", "Dose increased: home BP log elevated", "Dr. S. Whitfield"],
                  ["Lisinopril", "40 mg PO daily", "2026-09-22", None, "Increased from 20 mg", "Dr. S. Whitfield"],
                  ["Metformin", "1000 mg PO BID", "2024-06-03", None, "", "Dr. S. Whitfield"],
-                 ["Atorvastatin", "40 mg PO nightly", "2025-02-10", None, "", "Dr. S. Whitfield"]],
+                 ["Atorvastatin", "40 mg PO nightly", "2025-02-10", None, "", "Dr. S. Whitfield"],
+                 ["Amlodipine", "5 mg PO daily", "2025-02-10", "2026-08-18", "Discontinued: ankle swelling", "Dr. S. Whitfield"]],
         "labs": [["2026-09-22", "Hemoglobin A1c", "7.4 %", "4.0–5.6", "H", "Quest Diagnostics"],
                  ["2026-09-22", "Potassium", "4.6 mmol/L", "3.5–5.1", "", "Quest Diagnostics"],
                  ["2026-09-22", "Creatinine", "0.92 mg/dL", "0.60–1.10", "", "Quest Diagnostics"],
                  ["2026-07-14", "LDL cholesterol", "88 mg/dL", "<100", "", "Quest Diagnostics"]],
         "visits": [["2026-09-29", "Ophthalmology", "Dr. L. Okafor", "Diabetic eye exam. No retinopathy. Return 12 months."],
                    ["2026-09-22", "Office visit – Primary Care", "Dr. S. Whitfield", "BP 148/92, home log elevated. Increase lisinopril to 40 mg daily. Recheck BMP in 2 weeks."],
+                   ["2026-08-18", "Office visit – Primary Care", "Dr. S. Whitfield", "Bilateral ankle swelling attributed to amlodipine. Discontinue amlodipine 5 mg. Continue lisinopril 20 mg."],
                    ["2026-06-10", "Cardiology", "Dr. P. Anand", "Stable HTN. Continue current regimen. Echo normal."]],
         "message": ("2026-10-16T07:42:00", "Hi Dr. Whitfield, I've had a dry, tickly cough that started around October 9th. It was mild at first but it's getting worse, especially at night. No fever. Should I be worried?"),
     },
@@ -77,6 +79,7 @@ MOCK_DRUG_DB = {
     "ibuprofen": ("NSAID", "GI bleeding, kidney injury, raised BP"),
     "clopidogrel": ("P2Y12 inhibitor", "Bleeding, bruising"),
     "metoprolol": ("Beta-blocker", "Fatigue, slow heart rate"),
+    "amlodipine": ("Calcium channel blocker", "Ankle swelling, flushing, dizziness"),
 }
 
 

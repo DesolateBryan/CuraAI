@@ -7,7 +7,7 @@
 #   * Only adapters/model/* may touch the model gateway; vendor SDK objects
 #     never cross into Ring 2.
 #
-# STATUS: stubs only in this pass. Each class implements its port's signature
-# and raises NotImplementedError. Rings 1-2 are fully tested through fakes.
+# Every adapter is tested: pure mappers with fixed data, humble I/O classes with fakes,
+# and contract tests where a test fake and a real adapter must agree.
 # =============================================================================
 """CuraAI interface adapters (Ring 3)."""

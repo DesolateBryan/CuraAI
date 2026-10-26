@@ -30,6 +30,7 @@ Meetings: Wednesdays right after class.
 - PR #5 (review presenter): https://github.com/DesolateBryan/CuraAI/pull/5 (merged)
 - PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (**open**, targets `main`)
 - PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (**open**, targets `main`; built on #6, so merge #6 first)
+- PR #8 (web app + MockChart bridge): https://github.com/DesolateBryan/CuraAI/pull/8 (**open**, targets `main`; built on #7, so **merge #6 → #7 → #8**)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -43,8 +44,8 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 |---|---|---|---|
 | 1 Entities | `src/curaai/domain` | Pure rules, stdlib only | **Done** |
 | 2 Use cases | `src/curaai/application` | Ports, DTOs, validator, 5 use cases | **Done** |
-| 3 Adapters | `src/curaai/adapters` | EHR, drug DB, model, presenter, stores | EHR, drug, presenter **done** (on `main`); audit log + conversation store **done** (PR #6); model adapters + gateway + cost guard **done** (PR #7); only web router + `main.py` left |
-| 4 Frameworks | `src/curaai/app/main.py` | Composition root, FastAPI, Uvicorn | Stub |
+| 3 Adapters | `src/curaai/adapters` | EHR, drug DB, model, presenter, stores, web | **All done**: EHR/drug/presenter on `main`; stores (PR #6); model (PR #7); web controller + FastAPI + bridge (PR #8) |
+| 4 Frameworks | `src/curaai/app/main.py` | Composition root, FastAPI, Uvicorn | **Done** (PR #8) |
 
 **Dependency Rule:** imports only point inward. Domain imports nothing, application imports only domain, adapters never import each other, and only `app/main.py` (plus `tests/compose.py`) wires everything.
 
@@ -84,18 +85,28 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - Prompt parsers only reject non-JSON; **the core validator judges every value**, so all rejections are audited in one place.
 - **CostGuard** ($0.25/case + daily budget) lives in `adapters/model` (adapters can't import each other). Tripping on a spike of failed validations is deferred until the eval run sets a threshold.
 - **Metrics are computed from the audit log** (`case_metrics`), so they always match what auditors see.
+- **Web layer**: `WebController` makes every HTTP decision with no framework; FastAPI routes each make one call. Backend serves MockChart at `/mockchart` with a bridge script added (team's HTML never edited).
+- Follow-up questions reach MockChart through an **outbox** the bridge polls; they show as messages from Dr. Whitfield (mock only has a doctor-send function).
+- **`CURAAI_MODEL_BACKEND=none`** runs the whole demo with no AWS account (fixed chart pull, no AI).
+- Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
+- Re-captured MockChart data after the team added **amlodipine (stopped Aug 18)** + an Aug 18 visit to Ellison; the parity test caught it.
 
 ## Open questions for the team
 1. **Urgent symptoms**: nothing fast-tracks chest pain (MockChart p5). Add a red-flag rule?
 2. Symptom + follow-up **catalogs are drafts**; they need clinician sign-off (ADR-009).
 3. A message arriving mid-processing opens a new case. OK?
+4. **Model-call cap of 6 is tight**: in the live MockChart run, Whitaker's 2-follow-up case used all 6, so medication flagging was skipped. Raise to 8, or don't count question picks?
+5. Follow-up questions show as from **Dr. Whitfield** in MockChart. Label them as automated CuraAI questions in real Epic?
 
 ## How to run
+**Demo (no cloud account):** `pip install -e ".[web]"`, copy `.env.example` to `.env`, run `python -m curaai.app.main`, open http://127.0.0.1:8000/mockchart. Use the CuraAI panel (bottom right) → **Open review**.
+
+**Tests:**
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
-pip install -e ".[dev]"
-pytest          # 152 tests, offline, fakes + fixed clock
+pip install -e ".[dev,web]"   # web extra lets the FastAPI route test run
+pytest          # 174 tests (+1 FastAPI route test with the web extra), offline
 lint-imports    # Dependency Rule check
 ```
 Re-capture FHIR test data from the MockChart page: `python tests/fixtures/fhir/capture.py`
@@ -105,7 +116,10 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 ## Next steps
 - [x] Merge PR #1 → #2 → #3 / #4 (core, EHR, drug adapters are on `main`)
 - [x] PR #5 retargeted to `main` and merged
-- [ ] Review + merge PR #6, then PR #7 (run real `pytest` + `lint-imports` first)
+- [ ] Review + merge PR #6 → #7 → #8 (run real `pytest` + `lint-imports` first)
+- [x] FastAPI routes + `app/main.py` + MockChart bridge (PR #8)
+- [ ] Run the demo on a teammate's machine: `python -m curaai.app.main` → /mockchart
+- [ ] Decide the model-call cap (open question 4)
 - [x] EHR adapter: FHIR mapper + `MockEpicAdapter` (PR #2)
 - [x] Drug DB adapters: `MockDrugAdapter`, `OpenFdaAdapter` (PR #3)
 - [ ] Record one real openFDA response and compare with the synthetic fixture
@@ -114,7 +128,6 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] Model adapters + `ModelGateway` + Bedrock transport + `CostGuard` + logging decorators + metrics (PR #7)
 - [ ] Pick the Bedrock model id + get real pricing (placeholders in tests)
 - [ ] Build the synthetic evaluation set and run it against the real model (ADR-016)
-- [ ] FastAPI router → `app/main.py` → MockChart page bridge
 - [ ] Decide the urgent-symptom question
 
 ## Dev log
@@ -123,3 +136,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: Pushed PR #5: `ReviewPresenter` (pure `present_review`), humble HTML view, sample review for Ellison in `docs/samples/`. Packet now carries the searched window. 113 tests passing. Core, EHR and drug work are merged to `main`.
 - **2026-10-26 (later)**: PR #5 merged to `main`. Pushed PR #6: `JsonlAuditLog` (append-only, fsync'd, no patient text) and `InMemoryConversationStore` (thread-safe), with contract tests that run the same checks on the fakes and the real adapters. 125 tests passing.
 - **2026-10-26 (later)**: Pushed PR #7 (model side): prompts + parsers for the 4 model ports, in-process `ModelGateway` (redaction, pricing, audit), `BedrockConverseTransport`, `CostGuard`, logging decorators, `case_metrics`. Fixed a redaction bug (an MRN at the end of a sentence slipped through). Full pipeline runs through the real model stack with only the vendor faked. 152 tests passing.
+- **2026-10-26 (later)**: Pushed PR #8: framework-free `WebController`, FastAPI routes, `app/main.py` (`Config.from_env`, `build_container`), MockChart bridge + outbox, `none` model mode. Re-captured MockChart data (team added amlodipine). Ran the real page + bridge + backend in a browser: Whitaker got 2 catalog follow-ups, the simulated patient answered, and the review opened inside MockChart. **All four rings are built.** 174 tests passing.
