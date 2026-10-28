@@ -5,7 +5,8 @@ Responsibilities, all in this one place so the rest of the system never sees a v
   * prompt versioning: every call is logged with Prompt.version
   * pricing: token usage -> cost_usd with injected ModelPricing
   * audit (ADR-007): request id, port, prompt version, model, tokens, cost,
-    redactions, latency, and the raw model output, for replaying a case
+    redactions, latency, and the raw model output, for replaying a case; on a
+    failure, the vendor's reason (scrubbed of identifiers) so the fallback is explainable
   * vendor swap: the VendorTransport is injected; Bedrock today (bedrock_transport.py)
 
 The gateway as a separate service is deferred (ADR-017). When that happens, an
@@ -67,8 +68,9 @@ class ModelGateway:
         try:
             reply = self._transport.send(system, user, prompt.max_output_tokens)
         except Exception as exc:                       # vendor SDK errors never cross this line
+            reason, _ = redact_identifiers(str(exc))
             self._log(prompt, "model_gateway_error", latency_ms=_ms(started), redactions=redactions,
-                      error=type(exc).__name__)
+                      error=type(exc).__name__, message=reason[:300])
             raise ModelUnavailable(f"model gateway: {type(exc).__name__}") from exc
 
         cost = self._pricing.cost(reply.input_tokens, reply.output_tokens)

@@ -76,8 +76,18 @@ makes one tiny test call so a bad key shows up immediately.
 | Panel says **"Can't reach the CuraAI server"** | The server isn't running, or it stopped | Start `python -m curaai.app.main` again; the panel reconnects by itself |
 | Server says **"something is already running on 127.0.0.1:8000"** | An old CuraAI server is still open | Close that PowerShell window (or Ctrl+C in it), then start again |
 | Server says **"CuraAI can't start: …"** | A setting in `.env` is wrong (e.g. Gemini chosen but no key) | Run the setup check; it names the setting |
-| Reviews say **"AI screening was unavailable"** | The model backend failed (bad Gemini key, quota, no internet) | Run the setup check; the Gemini test call shows Google's error |
+| Reviews say **"AI screening was unavailable"** | Reading the message failed for that case: backend set to `none`, Gemini refused the call (bad key, per-minute limit, no internet), or Gemini's answer failed the safety check | Run the setup check, then see the exact reason in the audit log (command below) |
 | Want to run the patients again | | Click **Re-run** in the CuraAI panel, or MockChart's **Reset test data** |
+
+To see why a case fell back, show the last few failures from the audit log (PowerShell, in the CuraAI folder):
+
+```powershell
+Select-String -Path audit.jsonl -Pattern 'model_gateway_error|model_output_rejected|cost_guard_tripped' | Select-Object -Last 3
+```
+
+`model_gateway_error` lines include the model service's own message (e.g. `Gemini HTTP 429: quota exceeded`
+or `Gemini HTTP 400: API key not valid`). `model_output_rejected` lines give the safety check's reason.
+Gemini's per-minute limit is retried automatically (up to 3 tries, waiting as long as Google asks).
 
 ### Use a real AI model: Google Gemini
 
@@ -218,6 +228,10 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
   - The panel reports when the server can't be reached.
   - The server refuses to start with a plain message when the port is taken or a setting is wrong.
   - `python -m curaai.app.check` reports the whole setup, keys hidden.
+- **"AI screening was unavailable" is now explainable and less likely.**
+  - The gateway logs the model service's own error message (scrubbed of identifiers), not just the error type.
+  - Gemini rate limits (429) and brief outages (500/503) are retried up to 3 times, honoring Google's retry delay (capped at 30 s). Free keys have a per-minute limit, and the demo sends six patients at once.
+  - Parsers normalize harmless style differences ("Cough", "chest pain", an ISO timestamp for a date, "true" as a string) before the core validator, which is still strict about values.
 - **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
 - **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.
 - **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).
