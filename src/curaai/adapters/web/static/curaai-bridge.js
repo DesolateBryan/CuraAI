@@ -9,6 +9,10 @@
  *   2. Follow-up questions waiting in /api/outbox are posted into the patient's thread
  *      with MockEpic.send(), which makes MockChart's simulated patient reply.
  *   3. When a review is ready, a "CuraAI" panel offers to open it.
+ *   4. On every page load it asks the server what it already has for each patient, so a
+ *      reload never shows an empty panel. MockChart's "Reset test data" button, and the
+ *      panel's "Re-run" button, send the messages again. If the server can't be reached,
+ *      the panel says so and keeps retrying.
  * Only the backend decides anything. This script loops, posts and displays.
  */
 (() => {
@@ -19,10 +23,13 @@
   const SENT_KEY = "curaai.bridge.sent.v1";
   const INSTANCE_KEY = "curaai.bridge.instance.v1";
   const POLL_MS = 1500;
+  const RETRY_MS = 3000;
   const status = {};                         // patient_id -> {outcome, review_url}
+  let server = "connecting";                 // "connecting" | "ok" | "down"
 
   const sent = (() => { try { return new Set(JSON.parse(localStorage.getItem(SENT_KEY)) || []); } catch (e) { return new Set(); } })();
   const remember = id => { sent.add(id); try { localStorage.setItem(SENT_KEY, JSON.stringify([...sent])); } catch (e) {} };
+  const forgetSent = () => { sent.clear(); try { localStorage.setItem(SENT_KEY, "[]"); } catch (e) {} };
 
   // MockChart's seed messages have no timezone; they are page-local times.
   const toIso = t => (/[zZ]|[+-]\d\d:\d\d$/.test(t) ? t : new Date(t).toISOString());
@@ -42,7 +49,8 @@
       const body = await res.json();
       setStatus(pid, res.ok ? body : { outcome: "error", error: body.error || res.status });
     } catch (e) {
-      setStatus(pid, { outcome: "error", error: String(e) });
+      sent.delete(id);                       // not delivered: allow a retry
+      setStatus(pid, { outcome: "error", error: "Can't reach the CuraAI server" });
     }
   }
 
@@ -60,7 +68,7 @@
   }
 
   // ---- panel (display only) -------------------------------------------------------------
-  const LABELS = { sending: "Screening…", follow_up_sent: "Asked patient a follow-up",
+  const LABELS = { sending: "Screening…", follow_up_sent: "Waiting for the patient's answer",
                    packet_delivered: "Review ready", handed_off_incomplete: "Handed off (incomplete)", error: "Error" };
   const panel = document.createElement("div");
   panel.id = "curaai-panel";
@@ -86,32 +94,85 @@
       const err = s.error ? `<div style="color:#b3261e">${String(s.error).replace(/</g, "&lt;")}</div>` : "";
       return `<div style="padding:8px 10px;border-top:1px solid #d9e0e8"><b>${pid}</b> · ${LABELS[s.outcome] || s.outcome}${err}${link}</div>`;
     }).join("");
-    panel.innerHTML = `<div style="padding:7px 10px;font-weight:600;color:#1a6bb5">CuraAI</div>` +
-      (rows || '<div style="padding:8px 10px;color:#5d6b7c">Watching the In Basket…</div>');
+    const header = '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px">' +
+      '<b style="color:#1a6bb5">CuraAI</b><button id="curaai-rerun" title="Send every patient message to CuraAI again" ' +
+      'style="font:inherit;font-size:12px">Re-run</button></div>';
+    const notice = server === "down"
+      ? '<div style="padding:8px 10px;color:#b3261e">Can\'t reach the CuraAI server. Check that ' +
+        '<code>python -m curaai.app.main</code> is running, then this panel reconnects by itself.</div>'
+      : server === "connecting" ? '<div style="padding:8px 10px;color:#5d6b7c">Connecting to CuraAI…</div>'
+      : (rows ? "" : '<div style="padding:8px 10px;color:#5d6b7c">No patient messages to screen. ' +
+                     'Click Re-run to send them again.</div>');
+    panel.innerHTML = header + notice + rows;
+    panel.querySelector("#curaai-rerun").onclick = () => rerun();
     panel.querySelectorAll("[data-review]").forEach(b => b.onclick = () => {
       overlay.querySelector("#curaai-frame").src = b.dataset.review; overlay.style.display = "block";
     });
   }
 
   // ---- start ---------------------------------------------------------------------------------
-  render();
-  api.onPatientMessage((pid, m) => postMessage(pid, m));
-  (async () => {
+  async function serverInstance() {
+    try {
+      const res = await fetch("/api/health");
+      if (!res.ok) throw new Error(String(res.status));
+      server = "ok";
+      return (await res.json()).instance;
+    } catch (e) {
+      server = "down"; render();
+      return null;
+    }
+  }
+
+  // Ask the server what it already has, so a reload shows the real state instead of an empty panel.
+  async function restoreStatus() {
+    for (const p of api.patients()) {
+      try {
+        const res = await fetch(`/api/patients/${encodeURIComponent(p.id)}/review`);
+        if (res.ok) {
+          const b = await res.json();
+          status[p.id] = { outcome: b.outcome, review_url: b.review_url };
+        }
+      } catch (e) { /* shown as missing; sendAll will retry */ }
+    }
+    render();
+  }
+
+  async function sendAll() {
+    for (const p of api.patients()) {
+      for (const m of api.messages(p.id).filter(m => m.from === "p")) await postMessage(p.id, m);
+    }
+  }
+
+  async function rerun() {
+    forgetSent();
+    for (const k of Object.keys(status)) delete status[k];
+    render();
+    await sendAll();
+  }
+
+  async function start() {
+    const instance = await serverInstance();
+    if (instance === null) { setTimeout(start, RETRY_MS); return; }
     // The server keeps cases in memory, so after a restart it has forgotten every message.
     // If the server instance changed, forget what this page already sent and send it again.
     try {
-      const { instance } = await (await fetch("/api/health")).json();
       if (localStorage.getItem(INSTANCE_KEY) !== instance) {
-        sent.clear();
-        localStorage.setItem(SENT_KEY, "[]");
+        forgetSent();
         localStorage.setItem(INSTANCE_KEY, instance);
       }
-    } catch (e) { /* storage blocked or server down: carry on */ }
-    for (const p of api.patients()) {
-      const patientMessages = api.messages(p.id).filter(m => m.from === "p");
-      for (const m of patientMessages) await postMessage(p.id, m);
-    }
-  })();
+    } catch (e) { /* storage blocked: carry on */ }
+    await restoreStatus();
+    await sendAll();
+  }
+
+  // MockChart's "Reset test data" puts the original messages back, so screen them again.
+  document.addEventListener("click", e => {
+    if (e.target && e.target.id === "reset") setTimeout(rerun, 300);
+  }, true);
+
+  render();
+  api.onPatientMessage((pid, m) => postMessage(pid, m));
+  start();
   pollOutbox();
-  window.CuraAIBridge = { status, postMessage };   // for tests and debugging
+  window.CuraAIBridge = { status, postMessage, rerun };   // for tests and debugging
 })();

@@ -14,6 +14,8 @@ Run the demo (no cloud account needed; the default backend is the local rule-bas
 """
 
 import os
+import socket
+import sys
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -227,9 +229,22 @@ def build_app(container: Container, config: Config):
                       bridge_js=BRIDGE_JS.read_text(encoding="utf-8"), sweep_every_s=config.sweep_seconds or None)
 
 
+def port_in_use(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        return s.connect_ex((host, port)) == 0
+
+
 def main() -> None:
     import uvicorn
-    config = Config.from_env({**load_env_file(".env"), **os.environ})
+    try:
+        config = Config.from_env({**load_env_file(".env"), **os.environ})
+    except ValueError as exc:
+        sys.exit(f"CuraAI can't start: {exc}\nRun  python -m curaai.app.check  for a full setup check.")
+    if port_in_use(config.host, config.port):
+        sys.exit(f"CuraAI can't start: something is already running on {config.host}:{config.port}.\n"
+                 "An old CuraAI server is probably still open. Close that PowerShell window "
+                 "(or press Ctrl+C in it), then start again.")
     container = build_container(config)
     app = build_app(container, config)
     model = f"{config.model_backend} ({config.gemini_model})" if config.model_backend == "gemini" else config.model_backend
