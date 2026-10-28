@@ -8,12 +8,13 @@
 Nothing imports this module, so the Dependency Rule still points inward.
 tests/compose.py is the second composition root; it wires fakes into the same use cases.
 
-Run the demo (no cloud account needed):
+Run the demo (no cloud account needed; the default backend is the local rule-based reader):
     pip install -e ".[web]"
     python -m curaai.app.main            # then open http://127.0.0.1:8000/mockchart
 """
 
 import os
+import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,6 +31,7 @@ from curaai.adapters.model import (
     BedrockConverseTransport, CostGuard, GatewayExtractSymptoms, GatewayMatchFlags, GatewayPickRelevantItems,
     GatewaySelectFollowUp, ModelGateway, ModelPricing,
 )
+from curaai.adapters.model.local_rules import LocalRulesTransport
 from curaai.adapters.model.no_model_transport import NoModelTransport
 from curaai.adapters.observability import (
     LoggedExtractSymptoms, LoggedMatchFlags, LoggedPickRelevantItems, LoggedSelectFollowUp,
@@ -52,7 +54,7 @@ BRIDGE_JS = Path(__file__).resolve().parents[1] / "adapters" / "web" / "static" 
 CHOICES = {
     "ehr_adapter": ("mock_epic",),                 # a real Epic adapter needs SMART on FHIR (deferred, ADR-017)
     "drug_adapter": ("mock", "openfda"),
-    "model_backend": ("none", "bedrock"),
+    "model_backend": ("local", "none", "bedrock"),
 }
 
 
@@ -61,7 +63,7 @@ CHOICES = {
 class Config:
     ehr_adapter: str = "mock_epic"
     drug_adapter: str = "mock"
-    model_backend: str = "none"
+    model_backend: str = "local"                  # rule-based demo reader; "bedrock" for a real model
     bedrock_model_id: str = ""
     aws_region: str = "us-east-1"
     mock_epic_api_key: str = "mock-curaai-key-0000"
@@ -171,8 +173,10 @@ def build_container(config: Config, *, bedrock_client: object | None = None) -> 
             import boto3                                   # the only vendor SDK import in the codebase
             bedrock_client = boto3.client("bedrock-runtime", region_name=config.aws_region)
         transport = BedrockConverseTransport(bedrock_client, config.bedrock_model_id)
+    elif config.model_backend == "local":
+        transport = LocalRulesTransport()                  # demo reader, no network, no cost
     else:
-        transport = NoModelTransport()
+        transport = NoModelTransport()                     # ADR-011 fallback only
     pricing = ModelPricing(config.price_in_per_mtok, config.price_out_per_mtok)
     client = CostGuard(ModelGateway(transport, pricing, audit, clock), limits, config.daily_budget_usd, audit, clock)
     extractor = LoggedExtractSymptoms(GatewayExtractSymptoms(client), audit, clock)
@@ -193,7 +197,8 @@ def build_container(config: Config, *, bedrock_client: object | None = None) -> 
     assemble = AssembleReviewPacket(presenter, DEFAULT_SYMPTOM_CATALOG, audit, clock)
     trigger = PipelineTrigger(store, screen, follow_up, prefetch, assemble, audit, clock, limits=limits)
 
-    controller = WebController(trigger, bundles, outbox, reviews, render_review_html, review_view_to_dict)
+    controller = WebController(trigger, bundles, outbox, reviews, render_review_html, review_view_to_dict,
+                               instance_id=uuid.uuid4().hex[:12])
     return Container(controller, trigger, audit, clock, bundles, outbox, reviews, _read_page(config))
 
 

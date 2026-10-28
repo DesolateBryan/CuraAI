@@ -17,6 +17,7 @@
 
   const api = window.MockEpic.connect(window.MockEpic.devKey);
   const SENT_KEY = "curaai.bridge.sent.v1";
+  const INSTANCE_KEY = "curaai.bridge.instance.v1";
   const POLL_MS = 1500;
   const status = {};                         // patient_id -> {outcome, review_url}
 
@@ -51,7 +52,7 @@
       if (res.ok) {
         for (const f of (await res.json()).follow_ups) {
           setStatus(f.patient_id, { outcome: "follow_up_sent" });
-          api.send(f.patient_id, f.text);          // catalog text, exactly as the backend sent it
+          api.send(f.patient_id, f.display_text);  // "Automated question from CuraAI: <catalog text>", as the backend sent it
         }
       }
     } catch (e) { /* backend restarting; try again next tick */ }
@@ -96,6 +97,16 @@
   render();
   api.onPatientMessage((pid, m) => postMessage(pid, m));
   (async () => {
+    // The server keeps cases in memory, so after a restart it has forgotten every message.
+    // If the server instance changed, forget what this page already sent and send it again.
+    try {
+      const { instance } = await (await fetch("/api/health")).json();
+      if (localStorage.getItem(INSTANCE_KEY) !== instance) {
+        sent.clear();
+        localStorage.setItem(SENT_KEY, "[]");
+        localStorage.setItem(INSTANCE_KEY, instance);
+      }
+    } catch (e) { /* storage blocked or server down: carry on */ }
     for (const p of api.patients()) {
       const patientMessages = api.messages(p.id).filter(m => m.from === "p");
       for (const m of patientMessages) await postMessage(p.id, m);

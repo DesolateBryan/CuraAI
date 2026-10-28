@@ -15,7 +15,7 @@ from curaai.application.ports.model_ports import SelectFollowUpPort
 from curaai.application.use_cases._audit import Auditor
 from curaai.application.validation.model_output_validator import ModelOutputValidator
 from curaai.domain.conversation import Conversation
-from curaai.domain.follow_up_catalog import FollowUpCatalog, FollowUpQuestion
+from curaai.domain.follow_up_catalog import AUTOMATED_SENDER_LABEL, FollowUpCatalog, FollowUpQuestion
 from curaai.domain.values import MissingField
 
 ACTOR = "request_follow_up"
@@ -58,7 +58,8 @@ class RequestFollowUp:
         if question is None:
             question = self._catalog.best_for(missing)
 
-        self._messaging.send_follow_up(OutboundFollowUp(conversation.patient_id, question.id, question.text))
+        self._messaging.send_follow_up(OutboundFollowUp(conversation.patient_id, question.id,
+                                                        question.text, AUTOMATED_SENDER_LABEL))
         conversation = conversation.record_follow_up(question.id, self._clock.now())
         self._audit(ACTOR, "follow_up_sent", case, question_id=question.id, chosen_by=chosen_by,
                     missing=",".join(sorted(m.value for m in missing)),

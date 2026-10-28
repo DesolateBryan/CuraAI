@@ -20,7 +20,8 @@ def test_routes_delegate_to_the_controller():
         config = Config.from_env({"CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "a.jsonl"),
                                   "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00", "CURAAI_SWEEP_SECONDS": "0"})
         with TestClient(build_app(build_container(config), config)) as client:
-            assert client.get("/api/health").json() == {"status": "ok"}
+            health = client.get("/api/health").json()
+            assert health["status"] == "ok" and len(health["instance"]) == 12
             r = client.post("/api/messages", json=body("p1"))
             assert r.status_code == 200 and r.json()["outcome"] == "packet_delivered"
             case = r.json()["case_id"]

@@ -77,8 +77,8 @@ def create_app(controller: WebController, *, page_html: str | None, bridge_js: s
         return _respond(await run_in_threadpool(controller.sweep))
 
     @app.get("/api/health")
-    async def health() -> dict:
-        return {"status": "ok"}
+    async def health() -> Response:
+        return _respond(controller.health())
 
     @app.get("/")
     async def root() -> Response:
