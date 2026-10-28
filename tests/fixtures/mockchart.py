@@ -134,3 +134,14 @@ def fhir_bundles() -> dict[str, dict]:
     Regenerate with: python tests/fixtures/fhir/capture.py  (needs Node + Playwright)
     """
     return json.loads(FHIR_CAPTURE.read_text(encoding="utf-8"))["bundles"]
+
+# MockChart's simulated patient: what it answers to an onset question and to a trend question.
+# Copied from the page's `reply` objects (p1..p6, in page order).
+SCRIPTED_REPLIES = {
+    "p1": {"onset": 'It started October 9th, so about a week ago.', "trend": "It's definitely getting worse. It keeps me up at night now."},
+    "p2": {"onset": 'I think it started around October 5th, a few days after my back appointment.', "trend": 'About the same most days, maybe a little worse in the mornings.'},
+    "p3": {"onset": 'Last Friday, October 9th.', "trend": "It's getting a bit worse. Episodes are more frequent now, maybe 3–4 times a day."},
+    "p4": {"onset": 'It started Wednesday, so October 14th.', "trend": 'About the same, maybe slightly better today. The barky cough is still there at night.'},
+    "p5": {"onset": 'About an hour ago, it came on while I was resting.', "trend": "If anything it feels a bit worse, the pressure hasn't let up."},
+    "p6": {"onset": 'They started around October 2nd, a couple weeks ago now.', "trend": "They've been getting more frequent, almost every other day now instead of once a week."},
+}

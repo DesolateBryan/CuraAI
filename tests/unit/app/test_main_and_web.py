@@ -58,7 +58,7 @@ def container(tmp, backend="none", extractions=(), **env):
 # ---- Config ------------------------------------------------------------------------------------
 def test_config_defaults_run_with_no_cloud_account():
     c = Config.from_env({})
-    assert (c.ehr_adapter, c.drug_adapter, c.model_backend) == ("mock_epic", "mock", "none")
+    assert (c.ehr_adapter, c.drug_adapter, c.model_backend) == ("mock_epic", "mock", "local")
 
 
 @pytest.mark.parametrize("env", [

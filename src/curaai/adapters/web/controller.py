@@ -62,7 +62,12 @@ class WebController:
     reviews: ReviewStore
     render_html: Callable[[Any], str]
     to_json: Callable[[Any], dict]
+    instance_id: str = ""            # new on every server start; the bridge uses it to resend after a restart
     _latest_case: dict[str, str] = field(default_factory=dict)
+
+    # ---- GET /api/health ---------------------------------------------------------------------
+    def health(self) -> WebResponse:
+        return WebResponse(200, {"status": "ok", "instance": self.instance_id})
 
     # ---- POST /api/messages ------------------------------------------------------------
     def post_message(self, body: object) -> WebResponse:

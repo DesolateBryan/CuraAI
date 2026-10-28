@@ -39,8 +39,11 @@ unless the `web` extra is installed (`pip install -e ".[dev,web]"`).
 
 ## Run the demo with MockChart
 
-No cloud account is needed. With no model backend, CuraAI runs its ADR-011 fallback:
-it still pulls the fixed 3-week chart history, and the review says AI screening was unavailable.
+No cloud account is needed. By default CuraAI uses its **local reader**
+(`CURAAI_MODEL_BACKEND=local`), a rule-based stand-in for the AI model that runs on your machine.
+It reads each patient message (symptoms, when they started, getting better or worse), asks
+follow-up questions for anything missing, then pulls the 3-week chart window measured from
+the onset and flags medications whose known side effects match the symptoms.
 
 ```bash
 pip install -e ".[web]"
@@ -60,8 +63,8 @@ To use a real model, set `CURAAI_MODEL_BACKEND=bedrock` and `CURAAI_BEDROCK_MODE
 `pip install -e ".[web,bedrock]"`. AWS credentials come from your normal AWS configuration.
 **Synthetic data only** until the BAA and retention policy exist (ADR-006).
 
+![Review from the local reader](docs/samples/local_reader_review.png)
 ![Follow-up thread](docs/samples/mockchart_follow_up_thread.png)
-![Review inside MockChart](docs/samples/mockchart_review_overlay.png)
 
 Never commit a real `.env`.
 
@@ -159,7 +162,13 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **The backend serves MockChart at `/mockchart` with the bridge added**, so the page and API share an origin (no CORS) and the team's HTML file stays untouched. The raw FHIR bundle stops at the EHR adapter's bundle source.
 - **Follow-up questions reach the page through an outbox** that the bridge polls.
 - **Every follow-up is labeled as automated** (team decision, 2026-10-26). `OutboundFollowUp.sender_label` is required and set by the core from `AUTOMATED_SENDER_LABEL` ("Automated question from CuraAI"), so no adapter can drop it. MockChart can only post as the doctor, so the label goes in front of the unchanged catalog text. A real Epic adapter should use Epic's own sender or automation field.
-- **`CURAAI_MODEL_BACKEND=none` is a supported mode.** Every model call fails cleanly and the fixed chart pull still runs, so the demo needs no AWS account.
+- **The demo's default reader is `local`**, a rule-based backend (`adapters/model/local_rules.py`). Without it, a demo with no AWS account never read the patient's message, so the chart window was measured from the message date. That missed the history that matters: Ellison's lisinopril increase 17 days before her cough, and Raman's levothyroxine increase.
+  - The local reader plugs in exactly where Bedrock does. Its answers go through the same gateway, audit log and core validator, and it sees only patient words, ids and short labels.
+  - It is **not** the product's model; ADR-002 rejected rule-based screening for production. It's a demo stand-in and a deterministic baseline for the evaluation set (ADR-016).
+  - Its side-effect table is demo knowledge from MockChart's synthetic drug list.
+  - Known wording gap: review tags still say "AI" ("AI: likely relevant") even when the local reader produced them.
+- **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
+- **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.
 - **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).
 - **MockChart test data was re-captured** after the team added amlodipine (stopped Aug 18) and an Aug 18 visit to Ellison. The parity test caught the drift.
 - **Rings 1–2 use frozen standard-library dataclasses.** Pydantic is only for the FastAPI edge (Ring 3/4).
