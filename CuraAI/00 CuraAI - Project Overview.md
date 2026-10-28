@@ -28,9 +28,10 @@ Meetings: Wednesdays right after class.
 - PR #3 (drug adapters): https://github.com/DesolateBryan/CuraAI/pull/3 (merged, reached `main` via #4)
 - PR #4 (drug adapters → `main`): https://github.com/DesolateBryan/CuraAI/pull/4 (merged)
 - PR #5 (review presenter): https://github.com/DesolateBryan/CuraAI/pull/5 (merged)
-- PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (**open**, targets `main`)
-- PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (**open**, targets `main`; built on #6, so merge #6 first)
-- PR #8 (web app + MockChart bridge): https://github.com/DesolateBryan/CuraAI/pull/8 (**open**, targets `main`; built on #7, so **merge #6 → #7 → #8**)
+- PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (merged)
+- PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (merged)
+- PR #8 (web app + MockChart bridge): https://github.com/DesolateBryan/CuraAI/pull/8 (merged; note: the automated-label + cap change missed this merge and ships in PR #9)
+- PR #9 (local reader + missed label/cap change): https://github.com/DesolateBryan/CuraAI/pull/9 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -89,7 +90,9 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - Follow-up questions reach MockChart through an **outbox** the bridge polls.
 - **Every follow-up is labeled "Automated question from CuraAI"** (decision 2026-10-26). The label is required on every outbound question and set by the core, so no adapter can drop it. In MockChart it goes in front of the unchanged catalog text; real Epic should use its own sender/automation field.
 - **Model-call cap doubled 6 → 12** (decision 2026-10-26): Whitaker's 2-follow-up case now uses 7 calls and keeps medication flagging. Record as an amendment to ADR-011.
-- **`CURAAI_MODEL_BACKEND=none`** runs the whole demo with no AWS account (fixed chart pull, no AI).
+- **Default demo reader is `local`** (rule-based, `adapters/model/local_rules.py`). Without it the demo never read the message, so the chart window started at the message date and **missed Ellison's lisinopril increase and Raman's levothyroxine increase**. It plugs in where Bedrock does (same gateway, audit, validator), sees only words/ids/labels, and is a demo stand-in + eval baseline, **not** the product model. Review tags still say "AI" when it produced them.
+- `CURAAI_MODEL_BACKEND=none` still exists (ADR-011 fallback: chart pull from message date).
+- Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
 - Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
 - Re-captured MockChart data after the team added **amlodipine (stopped Aug 18)** + an Aug 18 visit to Ellison; the parity test caught it.
 
@@ -99,14 +102,14 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 3. A message arriving mid-processing opens a new case. OK?
 
 ## How to run
-**Demo (no cloud account):** `pip install -e ".[web]"`, copy `.env.example` to `.env`, run `python -m curaai.app.main`, open http://127.0.0.1:8000/mockchart. Use the CuraAI panel (bottom right) → **Open review**.
+**Demo (no cloud account; uses the local reader by default):** `pip install -e ".[web]"`, copy `.env.example` to `.env`, run `python -m curaai.app.main`, open http://127.0.0.1:8000/mockchart. Use the CuraAI panel (bottom right) → **Open review**.
 
 **Tests:**
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev,web]"   # web extra lets the FastAPI route test run
-pytest          # 174 tests (+1 FastAPI route test with the web extra), offline
+pytest          # 203 tests (+1 FastAPI route test with the web extra), offline
 lint-imports    # Dependency Rule check
 ```
 Re-capture FHIR test data from the MockChart page: `python tests/fixtures/fhir/capture.py`
@@ -116,7 +119,9 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 ## Next steps
 - [x] Merge PR #1 → #2 → #3 / #4 (core, EHR, drug adapters are on `main`)
 - [x] PR #5 retargeted to `main` and merged
-- [ ] Review + merge PR #6 → #7 → #8 (run real `pytest` + `lint-imports` first)
+- [x] PR #6 → #7 → #8 merged
+- [ ] Review + merge PR #9 (run real `pytest` + `lint-imports` first)
+- [x] Demo reads messages and pulls the onset-based chart window with no AWS account (local reader)
 - [x] FastAPI routes + `app/main.py` + MockChart bridge (PR #8)
 - [ ] Run the demo on a teammate's machine: `python -m curaai.app.main` → /mockchart
 - [x] Model-call cap decided: doubled to 12
@@ -140,3 +145,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: Pushed PR #7 (model side): prompts + parsers for the 4 model ports, in-process `ModelGateway` (redaction, pricing, audit), `BedrockConverseTransport`, `CostGuard`, logging decorators, `case_metrics`. Fixed a redaction bug (an MRN at the end of a sentence slipped through). Full pipeline runs through the real model stack with only the vendor faked. 152 tests passing.
 - **2026-10-26 (later)**: Pushed PR #8: framework-free `WebController`, FastAPI routes, `app/main.py` (`Config.from_env`, `build_container`), MockChart bridge + outbox, `none` model mode. Re-captured MockChart data (team added amlodipine). Ran the real page + bridge + backend in a browser: Whitaker got 2 catalog follow-ups, the simulated patient answered, and the review opened inside MockChart. **All four rings are built.** 174 tests passing.
 - **2026-10-26 (later)**: Team decisions applied to PR #8: follow-ups labeled "Automated question from CuraAI" (required, set by the core) and the model-call cap doubled to 12. Browser re-check: label shows in MockChart, the simulated patient still answers correctly, and Whitaker's case uses 7 of 12 calls and keeps the sertraline flag. 174 tests passing.
+- **2026-10-27**: The demo wasn't really reading charts: with no AI backend it couldn't read messages, so the chart window started at the message date and missed the key history. Added the **local rule-based reader** as the default backend; all six MockChart patients now go end to end in the browser with the right windows (e.g. Ellison Sep 18 → Oct 16 incl. lisinopril increase, flagged for dry cough). Found that the automated-label + 12-call cap change had missed PR #8's merge; brought it into PR #9. Bridge now resends after a server restart. 203 tests passing.
