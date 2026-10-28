@@ -59,9 +59,29 @@ page with a small bridge script added (the HTML file itself is never edited). Th
    simulated patient answers them,
 3. shows a **CuraAI** panel (bottom right) with an **Open review** button per patient.
 
-To use a real model, set `CURAAI_MODEL_BACKEND=bedrock` and `CURAAI_BEDROCK_MODEL_ID`, then
-`pip install -e ".[web,bedrock]"`. AWS credentials come from your normal AWS configuration.
-**Synthetic data only** until the BAA and retention policy exist (ADR-006).
+### Use a real AI model: Google Gemini
+
+1. Sign in at **https://aistudio.google.com/apikey** with a Google account and click **Create API key**.
+   Each teammate can make their own free key; don't share keys in chat.
+2. Open your `.env` file (copy it from `.env.example` if you haven't) and set:
+   ```
+   CURAAI_MODEL_BACKEND=gemini
+   CURAAI_GEMINI_API_KEY=paste-your-key-here
+   ```
+   `.env` is in `.gitignore`, so the key is never committed. Optional: `CURAAI_GEMINI_MODEL`
+   (default `gemini-3.8-flash`) and `CURAAI_GEMINI_THINKING_LEVEL` (default `low`).
+3. Run `python -m curaai.app.main`. The first line should say `model=gemini (gemini-3.8-flash)`.
+
+To check it is really Gemini: in `audit.jsonl`, the `model_gateway_call` lines show
+`"model": "gemini-…"` with token counts and a cost. If Gemini fails (bad key, quota, no internet),
+the review says *"AI screening was unavailable"* and the line is a `model_gateway_error`.
+
+**Synthetic data only.** A Google AI Studio key is fine for MockChart's fake patients. Real
+patient data would need Gemini on Vertex AI under a Google Cloud BAA, which is a separate
+decision (ADR-001, ADR-006).
+
+AWS Bedrock is also supported: `CURAAI_MODEL_BACKEND=bedrock`, `CURAAI_BEDROCK_MODEL_ID`, and
+`pip install -e ".[web,bedrock]"`.
 
 ![Review from the local reader](docs/samples/local_reader_review.png)
 ![Follow-up thread](docs/samples/mockchart_follow_up_thread.png)
@@ -167,6 +187,11 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
   - It is **not** the product's model; ADR-002 rejected rule-based screening for production. It's a demo stand-in and a deterministic baseline for the evaluation set (ADR-016).
   - Its side-effect table is demo knowledge from MockChart's synthetic drug list.
   - Known wording gap: review tags still say "AI" ("AI: likely relevant") even when the local reader produced them.
+- **Google Gemini is a supported model backend** (`CURAAI_MODEL_BACKEND=gemini`, `adapters/model/gemini_transport.py`), requested by the team so the agent runs on a real model.
+  - It uses Gemini's `generateContent` REST API with the standard library only, so there's no extra package to install. The key goes in the `x-goog-api-key` header, never the URL, and never reaches logs or the settings printout.
+  - It requests JSON-only answers and a `low` thinking level, with an output allowance high enough that thinking can't cut an answer off.
+  - Like Bedrock, it plugs into the same gateway (redaction, audit, cost caps) and the same core validator. If Gemini fails, the case falls back to the fixed chart pull.
+  - **ADR note:** ADR-001 chose a HIPAA-eligible cloud provider. A Google AI Studio key is for synthetic data only. Real PHI would need Gemini on Vertex AI under a BAA; record the vendor choice as an ADR-001 amendment.
 - **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
 - **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.
 - **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).
