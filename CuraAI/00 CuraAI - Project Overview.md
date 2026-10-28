@@ -31,7 +31,8 @@ Meetings: Wednesdays right after class.
 - PR #6 (persistence): https://github.com/DesolateBryan/CuraAI/pull/6 (merged)
 - PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (merged)
 - PR #8 (web app + MockChart bridge): https://github.com/DesolateBryan/CuraAI/pull/8 (merged; note: the automated-label + cap change missed this merge and ships in PR #9)
-- PR #9 (local reader + missed label/cap change): https://github.com/DesolateBryan/CuraAI/pull/9 (**open**, targets `main`)
+- PR #9 (local reader + missed label/cap change): https://github.com/DesolateBryan/CuraAI/pull/9 (merged)
+- PR #10 (Google Gemini backend): https://github.com/DesolateBryan/CuraAI/pull/10 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -91,6 +92,8 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **Every follow-up is labeled "Automated question from CuraAI"** (decision 2026-10-26). The label is required on every outbound question and set by the core, so no adapter can drop it. In MockChart it goes in front of the unchanged catalog text; real Epic should use its own sender/automation field.
 - **Model-call cap doubled 6 → 12** (decision 2026-10-26): Whitaker's 2-follow-up case now uses 7 calls and keeps medication flagging. Record as an amendment to ADR-011.
 - **Default demo reader is `local`** (rule-based, `adapters/model/local_rules.py`). Without it the demo never read the message, so the chart window started at the message date and **missed Ellison's lisinopril increase and Raman's levothyroxine increase**. It plugs in where Bedrock does (same gateway, audit, validator), sees only words/ids/labels, and is a demo stand-in + eval baseline, **not** the product model. Review tags still say "AI" when it produced them.
+- **Google Gemini backend** (`CURAAI_MODEL_BACKEND=gemini`), requested by the group so the agent runs on a real AI model. Free key from https://aistudio.google.com/apikey → put `CURAAI_GEMINI_API_KEY=...` in `.env` (never committed). Default model `gemini-3.8-flash`, thinking `low`, JSON-only answers, stdlib HTTP (nothing extra to install). Same gateway/audit/validator; if Gemini fails → fixed chart pull fallback.
+- **AI Studio key = synthetic data only.** Real PHI would need Gemini on Vertex AI under a Google Cloud BAA → write an ADR-001 amendment for the vendor choice.
 - `CURAAI_MODEL_BACKEND=none` still exists (ADR-011 fallback: chart pull from message date).
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
 - Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
@@ -109,7 +112,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev,web]"   # web extra lets the FastAPI route test run
-pytest          # 203 tests (+1 FastAPI route test with the web extra), offline
+pytest          # 214 tests (+1 FastAPI route test with the web extra), offline
 lint-imports    # Dependency Rule check
 ```
 Re-capture FHIR test data from the MockChart page: `python tests/fixtures/fhir/capture.py`
@@ -120,7 +123,10 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] Merge PR #1 → #2 → #3 / #4 (core, EHR, drug adapters are on `main`)
 - [x] PR #5 retargeted to `main` and merged
 - [x] PR #6 → #7 → #8 merged
-- [ ] Review + merge PR #9 (run real `pytest` + `lint-imports` first)
+- [x] PR #9 merged
+- [ ] Review + merge PR #10 (run real `pytest` + `lint-imports` first)
+- [ ] Someone gets a Gemini key and runs the demo with `CURAAI_MODEL_BACKEND=gemini` (first real model run)
+- [ ] ADR-001 amendment: Gemini (AI Studio for synthetic data; Vertex AI + BAA before real PHI)
 - [x] Demo reads messages and pulls the onset-based chart window with no AWS account (local reader)
 - [x] FastAPI routes + `app/main.py` + MockChart bridge (PR #8)
 - [ ] Run the demo on a teammate's machine: `python -m curaai.app.main` → /mockchart
@@ -146,3 +152,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: Pushed PR #8: framework-free `WebController`, FastAPI routes, `app/main.py` (`Config.from_env`, `build_container`), MockChart bridge + outbox, `none` model mode. Re-captured MockChart data (team added amlodipine). Ran the real page + bridge + backend in a browser: Whitaker got 2 catalog follow-ups, the simulated patient answered, and the review opened inside MockChart. **All four rings are built.** 174 tests passing.
 - **2026-10-26 (later)**: Team decisions applied to PR #8: follow-ups labeled "Automated question from CuraAI" (required, set by the core) and the model-call cap doubled to 12. Browser re-check: label shows in MockChart, the simulated patient still answers correctly, and Whitaker's case uses 7 of 12 calls and keeps the sertraline flag. 174 tests passing.
 - **2026-10-27**: The demo wasn't really reading charts: with no AI backend it couldn't read messages, so the chart window started at the message date and missed the key history. Added the **local rule-based reader** as the default backend; all six MockChart patients now go end to end in the browser with the right windows (e.g. Ellison Sep 18 → Oct 16 incl. lisinopril increase, flagged for dry cough). Found that the automated-label + 12-call cap change had missed PR #8's merge; brought it into PR #9. Bridge now resends after a server restart. 203 tests passing.
+- **2026-10-27 (later)**: Group asked for a real AI model. Added **Google Gemini** as a model backend (PR #10): `generateContent` REST, key in a header from `.env`, JSON answers, low thinking, falls back cleanly on any Gemini error. Tested with a fake HTTP client end to end through `main.py` (Whitaker case); the first real call needs a teammate's key on their machine. 214 tests passing.
