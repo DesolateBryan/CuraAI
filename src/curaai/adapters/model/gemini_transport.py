@@ -13,6 +13,9 @@ Choices:
     tasks, and thinking tokens count against maxOutputTokens
   * maxOutputTokens has a floor of MIN_OUTPUT_TOKENS so thinking can't cut an answer off
   * no temperature: newer Gemini models ignore it and warn
+  * "too many requests" (429) and brief outages (500/503) are retried up to 3 times,
+    waiting as long as Google asks (RetryInfo / Retry-After), at most 30 s. Free keys
+    have a per-minute limit, and the demo sends six patients at once
   * standard library only (urllib), so no extra package to install
 
 PHI (ADR-006): the Gemini Developer API (a Google AI Studio key) is for SYNTHETIC
@@ -21,9 +24,10 @@ which is a separate decision for the team (ADR-001 names the vendor after review
 """
 
 import json
+import time
 import urllib.error
 import urllib.request
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Protocol
 from urllib.parse import quote
 
@@ -34,8 +38,34 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 MIN_OUTPUT_TOKENS = 2048
 
 
+RETRYABLE = frozenset({429, 500, 503})   # too many requests, server error, overloaded
+MAX_ATTEMPTS = 3
+BACKOFF_S = (4.0, 10.0)                  # used when Google doesn't say how long to wait
+MAX_WAIT_S = 30.0
+
+
 class GeminiError(RuntimeError):
     """Any failure talking to Gemini. The gateway turns it into ModelUnavailable (AI off, chart pull continues)."""
+
+    def __init__(self, message: str, status: int | None = None, retry_after_s: float | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+        self.retry_after_s = retry_after_s
+
+
+def retry_delay_s(error_body: Mapping, header_value: str | None) -> float | None:
+    """Pure: how long Google asked us to wait, from RetryInfo ("17s") or the Retry-After header."""
+    for detail in (error_body.get("error") or {}).get("details") or []:
+        delay = detail.get("retryDelay") if isinstance(detail, Mapping) else None
+        if isinstance(delay, str) and delay.endswith("s"):
+            try:
+                return float(delay[:-1])
+            except ValueError:
+                pass
+    try:
+        return float(header_value) if header_value else None
+    except ValueError:
+        return None
 
 
 class JsonPoster(Protocol):
@@ -86,19 +116,22 @@ class UrllibJsonPoster:
             with urllib.request.urlopen(request, timeout=timeout_s) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
-            detail = ""
+            body: Mapping = {}
             try:
-                detail = json.loads(exc.read().decode("utf-8")).get("error", {}).get("message", "")
+                body = json.loads(exc.read().decode("utf-8"))
             except Exception:
                 pass
-            raise GeminiError(f"Gemini HTTP {exc.code}: {detail or exc.reason}") from None
+            detail = (body.get("error") or {}).get("message", "") if isinstance(body, Mapping) else ""
+            raise GeminiError(f"Gemini HTTP {exc.code}: {detail or exc.reason}", status=exc.code,
+                              retry_after_s=retry_delay_s(body, exc.headers.get("Retry-After"))) from None
         except (urllib.error.URLError, TimeoutError) as exc:
             raise GeminiError(f"Gemini unreachable: {exc}") from None
 
 
 class GeminiTransport:
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, *, thinking_level: str | None = "low",
-                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = 30.0) -> None:
+                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = 30.0,
+                 sleep: Callable[[float], None] = time.sleep) -> None:
         if not api_key:
             raise ValueError("a Gemini API key is required")
         self._key = api_key
@@ -107,11 +140,19 @@ class GeminiTransport:
         self._poster = poster or UrllibJsonPoster()
         self._url = gemini_url(model, base_url)
         self._timeout = timeout_s
+        self._sleep = sleep
 
     def __repr__(self) -> str:
         return f"GeminiTransport(model={self._model!r}, api_key=***)"
 
     def send(self, system: str, user: str, max_output_tokens: int) -> VendorReply:
         body = gemini_request(system, user, max_output_tokens, self._thinking)
-        response = self._poster.post_json(self._url, {"x-goog-api-key": self._key}, body, self._timeout)
-        return parse_gemini_response(response, self._model)
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                response = self._poster.post_json(self._url, {"x-goog-api-key": self._key}, body, self._timeout)
+                return parse_gemini_response(response, self._model)
+            except GeminiError as exc:
+                if exc.status not in RETRYABLE or attempt == MAX_ATTEMPTS - 1:
+                    raise
+                self._sleep(min(exc.retry_after_s or BACKOFF_S[attempt], MAX_WAIT_S))
+        raise GeminiError("unreachable")   # pragma: no cover

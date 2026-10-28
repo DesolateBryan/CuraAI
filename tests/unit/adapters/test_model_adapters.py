@@ -296,3 +296,26 @@ def test_cost_cap_trip_mid_case_switches_ai_off_and_keeps_the_baseline():
     assert packet.ai_fallback and packet.incomplete_reason is None     # onset/trend already established
     assert any(r.section == "medication_changes" for r in packet.rows)
     assert case_metrics(audit.events).cost_guard_trips == 1
+
+
+# ---- harmless format differences from a real model are normalized, then validated strictly ---------------
+def test_capitals_spaces_timestamps_and_string_booleans_are_normalized():
+    raw = ('{"symptom_ids": ["Cough", " Chest pain ", "shortness-of-breath"], "onset": "2026-10-09T00:00:00Z", '
+           '"onset_is_approx": "true", "trend": "Worsening"}')
+    report = VALIDATOR.extraction(parse_extraction_response(raw), TODAY)
+    assert report.symptom_ids == {"cough", "chest_pain", "shortness_of_breath"}
+    assert report.onset == date(2026, 10, 9) and report.onset_is_approx
+    assert report.trend.value == "worsening"
+
+
+def test_normalizing_never_lets_an_unknown_value_through():
+    for raw in ('{"symptom_ids": ["Covid 19"]}', '{"symptom_ids": [], "trend": "Much Worse"}',
+                '{"symptom_ids": [], "onset": "2026-10-09 or so"}'):
+        with pytest.raises(ModelOutputRejected):
+            VALIDATOR.extraction(parse_extraction_response(raw), TODAY)
+
+
+def test_ids_that_are_exact_keys_are_only_trimmed():
+    assert parse_pick_response('{"item_ids": [" p1-mr1 "]}').item_ids == ("p1-mr1",)
+    assert parse_follow_up_response('{"question_id": " ask_trend"}').question_id == "ask_trend"
+    assert parse_pick_response('{"item_ids": ["P1-MR1"]}').item_ids == ("P1-MR1",)     # not lowercased

@@ -146,3 +146,81 @@ def test_config_requires_a_key_and_accepts_the_standard_env_name():
         Config.from_env({"CURAAI_MODEL_BACKEND": "gemini"})
     assert Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "GEMINI_API_KEY": "k"}).gemini_api_key == "k"
     assert KEY not in repr(Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "CURAAI_GEMINI_API_KEY": KEY}))
+
+
+# ---- rate limits and brief outages are retried; real errors are not ------------------------------------
+from curaai.adapters.model.gemini_transport import retry_delay_s  # noqa: E402
+
+
+class FlakyPoster:
+    """Fails with the given errors first, then answers."""
+
+    def __init__(self, *errors):
+        self.errors, self.calls = list(errors), 0
+
+    def post_json(self, url, headers, body, timeout_s):
+        self.calls += 1
+        if self.errors:
+            raise self.errors.pop(0)
+        return gemini_response(rules_answer(body["contents"][0]["parts"][0]["text"]))
+
+
+def test_rate_limit_is_retried_with_googles_delay_then_succeeds():
+    waits = []
+    poster = FlakyPoster(GeminiError("Gemini HTTP 429: quota", status=429, retry_after_s=7.0),
+                         GeminiError("Gemini HTTP 503: overloaded", status=503))
+    reply = GeminiTransport(KEY, poster=poster, sleep=waits.append).send("S", '{"items": [], "symptom_ids": []}', 300)
+    assert reply.text == '{"item_ids": []}' and poster.calls == 3
+    assert waits == [7.0, 10.0]                      # Google's delay, then our default backoff
+
+
+def test_gives_up_after_three_attempts_and_never_retries_a_bad_key():
+    waits = []
+    busy = FlakyPoster(*[GeminiError("Gemini HTTP 429: quota", status=429)] * 3)
+    with pytest.raises(GeminiError):
+        GeminiTransport(KEY, poster=busy, sleep=waits.append).send("S", '{"items": []}', 300)
+    assert busy.calls == 3
+    bad_key = FlakyPoster(GeminiError("Gemini HTTP 400: API key not valid", status=400))
+    with pytest.raises(GeminiError):
+        GeminiTransport(KEY, poster=bad_key, sleep=waits.append).send("S", '{"items": []}', 300)
+    assert bad_key.calls == 1
+
+
+def test_long_waits_are_capped():
+    waits = []
+    poster = FlakyPoster(GeminiError("Gemini HTTP 429", status=429, retry_after_s=120.0))
+    GeminiTransport(KEY, poster=poster, sleep=waits.append).send("S", '{"items": [], "symptom_ids": []}', 300)
+    assert waits == [30.0]
+
+
+def test_retry_delay_is_read_from_retryinfo_or_the_header():
+    body = {"error": {"code": 429, "details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "17s"}]}}
+    assert retry_delay_s(body, None) == 17.0
+    assert retry_delay_s({}, "5") == 5.0
+    assert retry_delay_s({}, None) is None
+
+
+def test_a_rate_limited_burst_still_ends_with_ai_on():
+    with tempfile.TemporaryDirectory() as tmp:
+        config = Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "CURAAI_GEMINI_API_KEY": KEY,
+                                  "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "audit.jsonl"),
+                                  "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
+        poster = FlakyPoster(GeminiError("Gemini HTTP 429: quota", status=429, retry_after_s=0.0))
+        k = build_container(config, gemini_poster=poster)
+        text, sent = first_message("p1")
+        r = k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
+                                       "fhir_bundle": fhir_bundles()["p1"]})
+        view = k.controller.get_review_json(r.body["case_id"]).body
+        assert not any("AI screening was unavailable" in n for n in view["notices"])
+        assert view["onset"].startswith("Around Oct 9, 2026")
+
+
+def test_the_gateway_keeps_googles_reason_in_the_audit_log():
+    with tempfile.TemporaryDirectory() as tmp:
+        k = container(tmp, FakePoster(error=GeminiError("Gemini HTTP 400: API key not valid. Please pass a valid API key.",
+                                                         status=400)))
+        text, sent = first_message("p1")
+        k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
+                                   "fhir_bundle": fhir_bundles()["p1"]})
+        (error,) = [e for e in read_audit_log(Path(tmp) / "audit.jsonl") if e.action == "model_gateway_error"][:1]
+        assert error.detail["message"].startswith("Gemini HTTP 400: API key not valid")

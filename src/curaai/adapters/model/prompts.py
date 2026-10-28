@@ -13,6 +13,11 @@ Parser rules:
   * values are NOT trusted here. Wrong types are passed through as-is, so the
     core's ModelOutputValidator rejects them and the rejection is audited in
     one place. The parser only refuses text that is not JSON at all
+  * harmless format differences ARE normalized first, so a real model isn't
+    rejected over style: symptom ids and trend are trimmed and lowercased
+    ("Cough" -> "cough", "chest pain" -> "chest_pain"), "true"/"false" strings
+    become booleans, and an ISO timestamp becomes its date ("2026-10-09T00:00:00Z"
+    -> 2026-10-09). Item, flag and question ids are only trimmed (they are exact keys)
   * bump the *_VERSION constant whenever a prompt's wording changes, then re-run
     the evaluation set (ADR-001)
 """
@@ -69,10 +74,10 @@ def build_extraction_prompt(r: ExtractionRequest) -> Prompt:
 def parse_extraction_response(raw: str) -> SymptomExtraction:
     data = _json_object(raw)
     return SymptomExtraction(
-        symptom_ids=_as_tuple(data.get("symptom_ids", ())),
+        symptom_ids=_as_tuple(data.get("symptom_ids", ()), _catalog_key),
         onset=_as_date(data.get("onset")),
-        onset_is_approx=data.get("onset_is_approx", False),
-        trend=data.get("trend"),
+        onset_is_approx=_as_bool(data.get("onset_is_approx", False)),
+        trend=_catalog_key(data.get("trend")),
     )
 
 
@@ -89,7 +94,7 @@ def build_follow_up_prompt(r: FollowUpRequest) -> Prompt:
 
 
 def parse_follow_up_response(raw: str) -> FollowUpChoice:
-    return FollowUpChoice(question_id=_json_object(raw).get("question_id"))
+    return FollowUpChoice(question_id=_trim(_json_object(raw).get("question_id")))
 
 
 # ---- PickRelevantItemsPort ----------------------------------------------------------
@@ -107,7 +112,7 @@ def build_pick_prompt(r: SelectionRequest) -> Prompt:
 
 
 def parse_pick_response(raw: str) -> ItemSelection:
-    return ItemSelection(item_ids=_as_tuple(_json_object(raw).get("item_ids", ())))
+    return ItemSelection(item_ids=_as_tuple(_json_object(raw).get("item_ids", ()), _trim))
 
 
 # ---- MatchFlagsPort -----------------------------------------------------------------
@@ -132,7 +137,7 @@ def parse_flags_response(raw: str) -> tuple[FlagMatch, ...]:
     for m in matches:
         if not isinstance(m, dict):
             raise ModelOutputRejected("flags: match is not an object")
-        out.append(FlagMatch(item_id=m.get("item_id"), flag_id=m.get("flag_id")))
+        out.append(FlagMatch(item_id=_trim(m.get("item_id")), flag_id=_trim(m.get("flag_id"))))
     return tuple(out)
 
 
@@ -156,16 +161,32 @@ def _json_object(raw: str) -> dict:
     return data
 
 
-def _as_tuple(value: object) -> object:
+def _as_tuple(value: object, normalize=lambda v: v) -> object:
     """Lists become tuples; anything else is passed through for the core validator to reject."""
-    return tuple(value) if isinstance(value, list) else value
+    return tuple(normalize(v) for v in value) if isinstance(value, list) else value
+
+
+def _trim(value: object) -> object:
+    return value.strip() if isinstance(value, str) else value
+
+
+def _catalog_key(value: object) -> object:
+    """'Chest pain ' -> 'chest_pain'. Non-strings pass through to be rejected."""
+    return "_".join(value.strip().lower().replace("-", " ").split()) if isinstance(value, str) else value
+
+
+def _as_bool(value: object) -> object:
+    if isinstance(value, str) and value.strip().lower() in ("true", "false"):
+        return value.strip().lower() == "true"
+    return value
 
 
 def _as_date(value: object) -> object:
-    """ISO date strings become dates; null stays None; anything else passes through to be rejected."""
-    if isinstance(value, str) and len(value) == 10:
+    """ISO dates (or timestamps) become dates; null stays None; anything else passes through to be rejected."""
+    is_timestamp = len(value) >= 13 and value[10] in "T " and value[11:13].isdigit() if isinstance(value, str) else False
+    if isinstance(value, str) and (len(value) == 10 or is_timestamp):
         try:
-            return date.fromisoformat(value)
+            return date.fromisoformat(value[:10])
         except ValueError:
             return value
     return value
