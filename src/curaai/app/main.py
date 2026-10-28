@@ -16,7 +16,7 @@ Run the demo (no cloud account needed; the default backend is the local rule-bas
 import os
 import uuid
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -31,6 +31,7 @@ from curaai.adapters.model import (
     BedrockConverseTransport, CostGuard, GatewayExtractSymptoms, GatewayMatchFlags, GatewayPickRelevantItems,
     GatewaySelectFollowUp, ModelGateway, ModelPricing,
 )
+from curaai.adapters.model.gemini_transport import DEFAULT_MODEL as DEFAULT_GEMINI_MODEL, GeminiTransport
 from curaai.adapters.model.local_rules import LocalRulesTransport
 from curaai.adapters.model.no_model_transport import NoModelTransport
 from curaai.adapters.observability import (
@@ -54,7 +55,7 @@ BRIDGE_JS = Path(__file__).resolve().parents[1] / "adapters" / "web" / "static" 
 CHOICES = {
     "ehr_adapter": ("mock_epic",),                 # a real Epic adapter needs SMART on FHIR (deferred, ADR-017)
     "drug_adapter": ("mock", "openfda"),
-    "model_backend": ("local", "none", "bedrock"),
+    "model_backend": ("local", "gemini", "bedrock", "none"),
 }
 
 
@@ -65,6 +66,9 @@ class Config:
     drug_adapter: str = "mock"
     model_backend: str = "local"                  # rule-based demo reader; "bedrock" for a real model
     bedrock_model_id: str = ""
+    gemini_api_key: str = field(default="", repr=False)   # from .env or the environment; never commit or print it
+    gemini_model: str = DEFAULT_GEMINI_MODEL
+    gemini_thinking_level: str = "low"             # "" to leave the model default
     aws_region: str = "us-east-1"
     mock_epic_api_key: str = "mock-curaai-key-0000"
     audit_log_path: str = "./audit.jsonl"
@@ -89,6 +93,9 @@ class Config:
                 ehr_adapter=get("ehr_adapter", d.ehr_adapter), drug_adapter=get("drug_adapter", d.drug_adapter),
                 model_backend=get("model_backend", d.model_backend),
                 bedrock_model_id=get("bedrock_model_id", ""), aws_region=get("aws_region", d.aws_region),
+                gemini_api_key=get("gemini_api_key", "") or env.get("GEMINI_API_KEY", "").strip(),
+                gemini_model=get("gemini_model", d.gemini_model),
+                gemini_thinking_level=get("gemini_thinking_level", d.gemini_thinking_level),
                 mock_epic_api_key=get("mock_epic_api_key", d.mock_epic_api_key),
                 audit_log_path=get("audit_log_path", d.audit_log_path), clinic_tz=get("clinic_tz", d.clinic_tz),
                 clock_now=get("clock_now", ""), mockchart_page=get("mockchart_page", ""),
@@ -109,6 +116,9 @@ class Config:
                 raise ValueError(f"CURAAI_{name.upper()} must be one of {', '.join(allowed)}")
         if self.model_backend == "bedrock" and not self.bedrock_model_id:
             raise ValueError("CURAAI_BEDROCK_MODEL_ID is required when CURAAI_MODEL_BACKEND=bedrock")
+        if self.model_backend == "gemini" and not self.gemini_api_key:
+            raise ValueError("CURAAI_GEMINI_API_KEY is required when CURAAI_MODEL_BACKEND=gemini "
+                             "(get a free key at https://aistudio.google.com/apikey)")
         if not self.mock_epic_api_key:
             raise ValueError("CURAAI_MOCK_EPIC_API_KEY is required")
 
@@ -150,7 +160,8 @@ def build_clock(config: Config) -> ClockPort:
     return SystemClock(tz)
 
 
-def build_container(config: Config, *, bedrock_client: object | None = None) -> Container:
+def build_container(config: Config, *, bedrock_client: object | None = None,
+                    gemini_poster: object | None = None) -> Container:
     clock = build_clock(config)
     audit = JsonlAuditLog(config.audit_log_path)
     limits = CaseLimits()
@@ -173,6 +184,9 @@ def build_container(config: Config, *, bedrock_client: object | None = None) -> 
             import boto3                                   # the only vendor SDK import in the codebase
             bedrock_client = boto3.client("bedrock-runtime", region_name=config.aws_region)
         transport = BedrockConverseTransport(bedrock_client, config.bedrock_model_id)
+    elif config.model_backend == "gemini":
+        transport = GeminiTransport(config.gemini_api_key, config.gemini_model,
+                                    thinking_level=config.gemini_thinking_level or None, poster=gemini_poster)
     elif config.model_backend == "local":
         transport = LocalRulesTransport()                  # demo reader, no network, no cost
     else:
@@ -218,7 +232,8 @@ def main() -> None:
     config = Config.from_env({**load_env_file(".env"), **os.environ})
     container = build_container(config)
     app = build_app(container, config)
-    print(f"CuraAI: model={config.model_backend} drugs={config.drug_adapter} audit={config.audit_log_path}")
+    model = f"{config.model_backend} ({config.gemini_model})" if config.model_backend == "gemini" else config.model_backend
+    print(f"CuraAI: model={model} drugs={config.drug_adapter} audit={config.audit_log_path}")
     print(f"Open http://{config.host}:{config.port}/mockchart")
     uvicorn.run(app, host=config.host, port=config.port)
 
