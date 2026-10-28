@@ -59,6 +59,26 @@ page with a small bridge script added (the HTML file itself is never edited). Th
    simulated patient answers them,
 3. shows a **CuraAI** panel (bottom right) with an **Open review** button per patient.
 
+### If the demo isn't working
+
+Run the setup check first, from the CuraAI folder:
+
+```bash
+python -m curaai.app.check
+```
+
+It shows what your `.env` actually selects (API keys hidden), whether the settings are valid,
+whether port 8000 is already taken, whether the MockChart page was found and, for Gemini,
+makes one tiny test call so a bad key shows up immediately.
+
+| What you see | What it means | Fix |
+|---|---|---|
+| Panel says **"Can't reach the CuraAI server"** | The server isn't running, or it stopped | Start `python -m curaai.app.main` again; the panel reconnects by itself |
+| Server says **"something is already running on 127.0.0.1:8000"** | An old CuraAI server is still open | Close that PowerShell window (or Ctrl+C in it), then start again |
+| Server says **"CuraAI can't start: …"** | A setting in `.env` is wrong (e.g. Gemini chosen but no key) | Run the setup check; it names the setting |
+| Reviews say **"AI screening was unavailable"** | The model backend failed (bad Gemini key, quota, no internet) | Run the setup check; the Gemini test call shows Google's error |
+| Want to run the patients again | | Click **Re-run** in the CuraAI panel, or MockChart's **Reset test data** |
+
 ### Use a real AI model: Google Gemini
 
 1. Sign in at **https://aistudio.google.com/apikey** with a Google account and click **Create API key**.
@@ -192,6 +212,12 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
   - It requests JSON-only answers and a `low` thinking level, with an output allowance high enough that thinking can't cut an answer off.
   - Like Bedrock, it plugs into the same gateway (redaction, audit, cost caps) and the same core validator. If Gemini fails, the case falls back to the fixed chart pull.
   - **ADR note:** ADR-001 chose a HIPAA-eligible cloud provider. A Google AI Studio key is for synthetic data only. Real PHI would need Gemini on Vertex AI under a BAA; record the vendor choice as an ADR-001 amendment.
+- **The demo recovers on its own and explains problems** (fix after a team report that the panel was stuck on "Watching the In Basket…").
+  - On every load, the panel asks the server for each patient's latest case, so a reload never shows an empty panel.
+  - MockChart's **Reset test data** and the panel's **Re-run** button screen the patients again.
+  - The panel reports when the server can't be reached.
+  - The server refuses to start with a plain message when the port is taken or a setting is wrong.
+  - `python -m curaai.app.check` reports the whole setup, keys hidden.
 - **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
 - **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.
 - **The trend question was reworded** to "Have your symptoms been getting better, getting worse, or staying about the same?". The old wording began "Since they started…", which reads like an onset question on its own (MockChart's simulated patient answered it as one).

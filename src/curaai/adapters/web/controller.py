@@ -63,7 +63,7 @@ class WebController:
     render_html: Callable[[Any], str]
     to_json: Callable[[Any], dict]
     instance_id: str = ""            # new on every server start; the bridge uses it to resend after a restart
-    _latest_case: dict[str, str] = field(default_factory=dict)
+    _latest_case: dict[str, tuple[str, str]] = field(default_factory=dict)   # patient -> (case_id, outcome)
 
     # ---- GET /api/health ---------------------------------------------------------------------
     def health(self) -> WebResponse:
@@ -83,7 +83,7 @@ class WebController:
             return WebResponse(422, {"error": str(exc)})
         except ExternalSourceUnavailable as exc:
             return WebResponse(503, {"error": str(exc)})
-        self._latest_case[result.patient_id] = result.case_id
+        self._latest_case[result.patient_id] = (result.case_id, result.outcome.value)
         has_review = result.case_id in self.reviews.views
         return WebResponse(200, {
             "case_id": result.case_id,
@@ -111,17 +111,19 @@ class WebController:
         return WebResponse(200, self.render_html(view), "text/html")
 
     def get_latest_for_patient(self, patient_id: str) -> WebResponse:
-        case_id = self._latest_case.get(patient_id)
-        if case_id is None:
+        latest = self._latest_case.get(patient_id)
+        if latest is None:
             return WebResponse(404, {"error": "no case for patient"})
-        return WebResponse(200, {"case_id": case_id, "has_review": case_id in self.reviews.views,
-                                 "review_url": f"/reviews/{case_id}" if case_id in self.reviews.views else None})
+        case_id, outcome = latest
+        has_review = case_id in self.reviews.views
+        return WebResponse(200, {"case_id": case_id, "outcome": outcome, "has_review": has_review,
+                                 "review_url": f"/reviews/{case_id}" if has_review else None})
 
     # ---- POST /api/sweep ---------------------------------------------------------------------
     def sweep(self) -> WebResponse:
         results = self.trigger.sweep_timeouts()
         for r in results:
-            self._latest_case[r.patient_id] = r.case_id
+            self._latest_case[r.patient_id] = (r.case_id, r.outcome.value)
         return WebResponse(200, {"handed_off": [r.case_id for r in results]})
 
 

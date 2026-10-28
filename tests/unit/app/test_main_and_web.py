@@ -150,6 +150,7 @@ def test_whitaker_follow_up_goes_out_through_the_outbox_and_the_reply_completes_
                                                sent_at="2026-10-16T12:20:00Z", bundle=False))
         assert reply.body["outcome"] == "packet_delivered" and reply.body["case_id"] == first.body["case_id"]
         latest = k.controller.get_latest_for_patient("p2").body
+        assert latest["outcome"] == "packet_delivered"
         assert latest["review_url"] == f"/reviews/{first.body['case_id']}"
         view = k.controller.get_review_json(first.body["case_id"]).body
         assert view["onset"] == "Around Oct 5, 2026 (approximate, patient-reported)"

@@ -32,7 +32,8 @@ Meetings: Wednesdays right after class.
 - PR #7 (model side): https://github.com/DesolateBryan/CuraAI/pull/7 (merged)
 - PR #8 (web app + MockChart bridge): https://github.com/DesolateBryan/CuraAI/pull/8 (merged; note: the automated-label + cap change missed this merge and ships in PR #9)
 - PR #9 (local reader + missed label/cap change): https://github.com/DesolateBryan/CuraAI/pull/9 (merged)
-- PR #10 (Google Gemini backend): https://github.com/DesolateBryan/CuraAI/pull/10 (**open**, targets `main`)
+- PR #10 (Google Gemini backend): https://github.com/DesolateBryan/CuraAI/pull/10 (merged)
+- PR #11 (demo fix: stuck panel + setup check): https://github.com/DesolateBryan/CuraAI/pull/11 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -95,6 +96,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **Google Gemini backend** (`CURAAI_MODEL_BACKEND=gemini`), requested by the group so the agent runs on a real AI model. Free key from https://aistudio.google.com/apikey → put `CURAAI_GEMINI_API_KEY=...` in `.env` (never committed). Default model `gemini-3.8-flash`, thinking `low`, JSON-only answers, stdlib HTTP (nothing extra to install). Same gateway/audit/validator; if Gemini fails → fixed chart pull fallback.
 - **AI Studio key = synthetic data only.** Real PHI would need Gemini on Vertex AI under a Google Cloud BAA → write an ADR-001 amendment for the vendor choice.
 - `CURAAI_MODEL_BACKEND=none` still exists (ADR-011 fallback: chart pull from message date).
+- **Stuck "Watching the In Basket…" fixed (PR #11)**: panel now restores each patient's status from the server on reload; MockChart **Reset test data** and a new **Re-run** button re-screen patients; panel says "Can't reach the CuraAI server" when it's down; server refuses to start with a plain message if port 8000 is taken (old server still open) or a setting is wrong.
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
 - Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
 - Re-captured MockChart data after the team added **amlodipine (stopped Aug 18)** + an Aug 18 visit to Ellison; the parity test caught it.
@@ -105,6 +107,8 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 3. A message arriving mid-processing opens a new case. OK?
 
 ## How to run
+**If it's not working:** run `python -m curaai.app.check` first (shows `.env` settings with keys hidden, port in use, page found, Gemini test call).
+
 **Demo (no cloud account; uses the local reader by default):** `pip install -e ".[web]"`, copy `.env.example` to `.env`, run `python -m curaai.app.main`, open http://127.0.0.1:8000/mockchart. Use the CuraAI panel (bottom right) → **Open review**.
 
 **Tests:**
@@ -112,7 +116,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev,web]"   # web extra lets the FastAPI route test run
-pytest          # 214 tests (+1 FastAPI route test with the web extra), offline
+pytest          # 222 tests (+1 FastAPI route test with the web extra), offline
 lint-imports    # Dependency Rule check
 ```
 Re-capture FHIR test data from the MockChart page: `python tests/fixtures/fhir/capture.py`
@@ -124,7 +128,8 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #5 retargeted to `main` and merged
 - [x] PR #6 → #7 → #8 merged
 - [x] PR #9 merged
-- [ ] Review + merge PR #10 (run real `pytest` + `lint-imports` first)
+- [x] PR #10 merged (Gemini)
+- [ ] Review + merge PR #11 (run real `pytest` + `lint-imports` first)
 - [ ] Someone gets a Gemini key and runs the demo with `CURAAI_MODEL_BACKEND=gemini` (first real model run)
 - [ ] ADR-001 amendment: Gemini (AI Studio for synthetic data; Vertex AI + BAA before real PHI)
 - [x] Demo reads messages and pulls the onset-based chart window with no AWS account (local reader)
@@ -153,3 +158,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-26 (later)**: Team decisions applied to PR #8: follow-ups labeled "Automated question from CuraAI" (required, set by the core) and the model-call cap doubled to 12. Browser re-check: label shows in MockChart, the simulated patient still answers correctly, and Whitaker's case uses 7 of 12 calls and keeps the sertraline flag. 174 tests passing.
 - **2026-10-27**: The demo wasn't really reading charts: with no AI backend it couldn't read messages, so the chart window started at the message date and missed the key history. Added the **local rule-based reader** as the default backend; all six MockChart patients now go end to end in the browser with the right windows (e.g. Ellison Sep 18 → Oct 16 incl. lisinopril increase, flagged for dry cough). Found that the automated-label + 12-call cap change had missed PR #8's merge; brought it into PR #9. Bridge now resends after a server restart. 203 tests passing.
 - **2026-10-27 (later)**: Group asked for a real AI model. Added **Google Gemini** as a model backend (PR #10): `generateContent` REST, key in a header from `.env`, JSON answers, low thinking, falls back cleanly on any Gemini error. Tested with a fake HTTP client end to end through `main.py` (Whitaker case); the first real call needs a teammate's key on their machine. 214 tests passing.
+- **2026-10-28**: Team reported the panel stuck on "Watching the In Basket…" (worked the night before). Reproduced it: on reload with the same server, or after MockChart's Reset, the bridge skipped already-sent messages and showed nothing. Nobody changed `.env` in GitHub (it's never committed). Fixed in PR #11: status restored from the server, Reset/Re-run re-screen, clear server-down message, friendly start-up errors, and `python -m curaai.app.check`. Verified in a browser (fresh, reload, reset, re-run, server down). 222 tests passing.
