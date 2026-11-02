@@ -16,11 +16,12 @@ Part of Ring 4 (it builds a transport the same way main.py does). Exit code 1 if
 import importlib.util
 import os
 import sys
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from curaai.adapters.model.gemini_transport import GeminiError, GeminiTransport
+from curaai.adapters.model.gemini_transport import GeminiError, GeminiTransport, UrllibJsonPoster, gemini_model_info
 from curaai.app.main import Config, load_env_file, port_in_use
 
 OK, WARN, FAIL = "ok", "warn", "fail"
@@ -39,7 +40,8 @@ def mask(secret: str) -> str:
 
 def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
                port_probe: Callable[[str, int], bool] = port_in_use,
-               gemini_poster: object | None = None) -> list[Check]:
+               gemini_poster: object | None = None,
+               clock: Callable[[], float] = time.monotonic) -> list[Check]:
     checks: list[Check] = []
     file_values = load_env_file(env_file)
     if env_file.is_file():
@@ -81,21 +83,61 @@ def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
         checks.append(Check(OK, "port", f"{config.host}:{config.port} is free"))
 
     if config.model_backend == "gemini":
-        try:
-            reply = GeminiTransport(config.gemini_api_key, config.gemini_model,
-                                    thinking_level=config.gemini_thinking_level or None,
-                                    poster=gemini_poster, timeout_s=20).send(
-                'Reply with exactly this JSON: {"ok": true}', '{"ping": true}', 20)
-            checks.append(Check(OK, "Gemini test call", f"answered ({reply.model})"))
-        except GeminiError as exc:
-            hint = ("check your internet connection" if "unreachable" in str(exc)
-                    else "check the key at https://aistudio.google.com/apikey")
-            checks.append(Check(FAIL, "Gemini test call", f"{exc}. Next step: {hint}"))
+        checks.extend(gemini_checks(config, gemini_poster or UrllibJsonPoster(), clock))
     elif config.model_backend == "bedrock":
         if importlib.util.find_spec("boto3") is not None:   # look, don't import: only main.py imports SDKs
             checks.append(Check(OK, "Bedrock", "boto3 installed; AWS credentials come from your AWS config"))
         else:
             checks.append(Check(FAIL, "Bedrock", 'boto3 not installed: pip install -e ".[web,bedrock]"'))
+    return checks
+
+
+def gemini_checks(config: Config, poster: object, clock: Callable[[], float]) -> list[Check]:
+    """Two Gemini tests, fast one first, so the failure says WHICH thing is wrong.
+
+    1. Model lookup (no text generated, normally ~1 s): proves the network reaches Google,
+       the key is accepted and the model name exists.
+    2. A tiny real answer, with the same timeout the demo uses: proves Gemini answers in time.
+    """
+    key, model = config.gemini_api_key, config.gemini_model
+    started = clock()
+    try:
+        gemini_model_info(key, model, poster, timeout_s=15)
+        checks = [Check(OK, "Gemini connection", f"Google reached, key accepted, model {model} exists "
+                                                 f"({clock() - started:.1f} s)")]
+    except GeminiError as exc:
+        if exc.timed_out or exc.status is None:
+            hint = ("this computer can't reach Google's API. Try another network (school and work Wi-Fi "
+                    "often block it; a phone hotspot is a quick test), and check any VPN or firewall")
+        elif exc.status == 404:
+            hint = "the model name is wrong. Remove CURAAI_GEMINI_MODEL from .env, or set it to a model listed in AI Studio"
+        elif exc.status in (400, 401, 403):
+            hint = "the key was refused. Make a new one at https://aistudio.google.com/apikey and paste it into .env"
+        else:
+            hint = "Google returned an error; try again in a minute"
+        return [Check(FAIL, "Gemini connection", f"{exc}. Next step: {hint}")]
+
+    started = clock()
+    try:
+        reply = GeminiTransport(key, model, thinking_level=config.gemini_thinking_level or None, poster=poster,
+                                timeout_s=config.gemini_timeout_s).send(
+            'Reply with exactly this JSON: {"ok": true}', '{"ping": true}', 20)
+        took = clock() - started
+        status = OK if took < config.gemini_timeout_s / 2 else WARN
+        detail = f"answered in {took:.1f} s ({reply.model})"
+        if status == WARN:
+            detail += (f". That is slow: the demo waits {config.gemini_timeout_s:.0f} s per call. Raise "
+                       "CURAAI_GEMINI_TIMEOUT_S or use a lighter model (CURAAI_GEMINI_MODEL)")
+        checks.append(Check(status, "Gemini test call", detail))
+    except GeminiError as exc:
+        if exc.timed_out:
+            hint = (f"Google is reachable but the model did not answer within {config.gemini_timeout_s:.0f} s. "
+                    "Set CURAAI_GEMINI_TIMEOUT_S=120 in .env, or try a lighter model with CURAAI_GEMINI_MODEL")
+        elif exc.status == 429:
+            hint = "the key's per-minute or daily limit is used up; wait a minute (or until tomorrow) and retry"
+        else:
+            hint = "see the message above"
+        checks.append(Check(FAIL, "Gemini test call", f"{exc}. Next step: {hint}"))
     return checks
 
 

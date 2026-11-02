@@ -34,7 +34,8 @@ Meetings: Wednesdays right after class.
 - PR #9 (local reader + missed label/cap change): https://github.com/DesolateBryan/CuraAI/pull/9 (merged)
 - PR #10 (Google Gemini backend): https://github.com/DesolateBryan/CuraAI/pull/10 (merged)
 - PR #11 (demo fix: stuck panel + setup check): https://github.com/DesolateBryan/CuraAI/pull/11 (merged)
-- PR #12 (why "AI screening was unavailable": logging, Gemini retries, format normalizing): https://github.com/DesolateBryan/CuraAI/pull/12 (**open**, targets `main`)
+- PR #12 (why "AI screening was unavailable": logging, Gemini retries, format normalizing): https://github.com/DesolateBryan/CuraAI/pull/12 (merged)
+- PR #13 (Gemini timeouts: 60 s adjustable wait, retry once, two-step setup check): https://github.com/DesolateBryan/CuraAI/pull/13 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -98,6 +99,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **AI Studio key = synthetic data only.** Real PHI would need Gemini on Vertex AI under a Google Cloud BAA → write an ADR-001 amendment for the vendor choice.
 - `CURAAI_MODEL_BACKEND=none` still exists (ADR-011 fallback: chart pull from message date).
 - **"AI screening was unavailable"** = reading the message failed for that case → AI off, plain chart pull from message date. Causes: backend `none`; Gemini refused (bad key, **free-tier per-minute limit**, no internet); Gemini's answer failed the safety check; cost cap. PR #12: gateway now logs the service's real error message; Gemini 429/500/503 retried up to 3× honoring Google's delay; harmless format differences ("Cough", ISO timestamps, "true") normalized before the strict validator. Find the reason: `Select-String -Path audit.jsonl -Pattern 'model_gateway_error|model_output_rejected|cost_guard_tripped' | Select-Object -Last 3`
+- **Gemini timeouts** (RJ, 2026-11-02: `Gemini unreachable: The read operation timed out`, ~30 s): not a bad key (instant 400) or wrong model (instant 404); either the network stalls Google's API or the model is slow. PR #13: wait 60 s (`CURAAI_GEMINI_TIMEOUT_S`), retry a timeout once, messages say "timed out" vs "could not connect". `python -m curaai.app.check` now does a fast model lookup first (blocked network / bad key / wrong model) then times a real answer (slow → raise timeout or lighter model via `CURAAI_GEMINI_MODEL`).
 - **Stuck "Watching the In Basket…" fixed (PR #11)**: panel now restores each patient's status from the server on reload; MockChart **Reset test data** and a new **Re-run** button re-screen patients; panel says "Can't reach the CuraAI server" when it's down; server refuses to start with a plain message if port 8000 is taken (old server still open) or a setting is wrong.
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
 - Trend question reworded to *"Have your symptoms been getting better, getting worse, or staying about the same?"* (old "Since they started…" read like an onset question).
@@ -132,7 +134,9 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #9 merged
 - [x] PR #10 merged (Gemini)
 - [x] PR #11 merged
-- [ ] Review + merge PR #12 (run real `pytest` + `lint-imports` first)
+- [x] PR #12 merged
+- [ ] Review + merge PR #13 (run real `pytest` + `lint-imports` first)
+- [ ] RJ: pull, run `python -m curaai.app.check`, follow the `[FAIL]`/`[WARN]` line, re-run the demo
 - [ ] Someone gets a Gemini key and runs the demo with `CURAAI_MODEL_BACKEND=gemini` (first real model run)
 - [ ] ADR-001 amendment: Gemini (AI Studio for synthetic data; Vertex AI + BAA before real PHI)
 - [x] Demo reads messages and pulls the onset-based chart window with no AWS account (local reader)
@@ -163,3 +167,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-10-27 (later)**: Group asked for a real AI model. Added **Google Gemini** as a model backend (PR #10): `generateContent` REST, key in a header from `.env`, JSON answers, low thinking, falls back cleanly on any Gemini error. Tested with a fake HTTP client end to end through `main.py` (Whitaker case); the first real call needs a teammate's key on their machine. 214 tests passing.
 - **2026-10-28**: Team reported the panel stuck on "Watching the In Basket…" (worked the night before). Reproduced it: on reload with the same server, or after MockChart's Reset, the bridge skipped already-sent messages and showed nothing. Nobody changed `.env` in GitHub (it's never committed). Fixed in PR #11: status restored from the server, Reset/Re-run re-screen, clear server-down message, friendly start-up errors, and `python -m curaai.app.check`. Verified in a browser (fresh, reload, reset, re-run, server down). 222 tests passing.
 - **2026-10-28 (later)**: Asked why reviews say "AI screening was unavailable". Gap found: the audit log kept only the error type, not Gemini's reason. PR #12: log the real (scrubbed) message, retry Gemini rate limits/outages with Google's delay, normalize harmless answer formats. Likely cause on the demo: six patients at once exceed a free key's per-minute limit. 231 tests passing.
+- **2026-11-02**: RJ's audit log showed Gemini `extract_symptoms` timing out at ~30 s. PR #13: 60 s adjustable timeout, one retry on timeout, clearer error wording, two-step Gemini check (fast model lookup, then a timed answer) with hints for blocked network vs slow model. 241 tests passing.

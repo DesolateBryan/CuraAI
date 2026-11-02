@@ -13,6 +13,9 @@ Choices:
     tasks, and thinking tokens count against maxOutputTokens
   * maxOutputTokens has a floor of MIN_OUTPUT_TOKENS so thinking can't cut an answer off
   * no temperature: newer Gemini models ignore it and warn
+  * each request waits up to DEFAULT_TIMEOUT_S (60 s, CURAAI_GEMINI_TIMEOUT_S); a timeout
+    is retried once. Errors say which kind they are: Google answered with an error,
+    Google never answered in time, or no connection at all
   * "too many requests" (429) and brief outages (500/503) are retried up to 3 times,
     waiting as long as Google asks (RetryInfo / Retry-After), at most 30 s. Free keys
     have a per-minute limit, and the demo sends six patients at once
@@ -36,6 +39,7 @@ from curaai.adapters.model.gateway import VendorReply
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_MODEL = "gemini-3.8-flash"
 MIN_OUTPUT_TOKENS = 2048
+DEFAULT_TIMEOUT_S = 60.0              # per request; CURAAI_GEMINI_TIMEOUT_S
 
 
 RETRYABLE = frozenset({429, 500, 503})   # too many requests, server error, overloaded
@@ -47,10 +51,12 @@ MAX_WAIT_S = 30.0
 class GeminiError(RuntimeError):
     """Any failure talking to Gemini. The gateway turns it into ModelUnavailable (AI off, chart pull continues)."""
 
-    def __init__(self, message: str, status: int | None = None, retry_after_s: float | None = None) -> None:
+    def __init__(self, message: str, status: int | None = None, retry_after_s: float | None = None,
+                 timed_out: bool = False) -> None:
         super().__init__(message)
         self.status = status
         self.retry_after_s = retry_after_s
+        self.timed_out = timed_out
 
 
 def retry_delay_s(error_body: Mapping, header_value: str | None) -> float | None:
@@ -107,11 +113,19 @@ def parse_gemini_response(response: Mapping, model: str) -> VendorReply:
 
 # ---- humble -----------------------------------------------------------------------------------
 class UrllibJsonPoster:
-    """One HTTPS POST with the standard library. HTTP errors become GeminiError with Google's message."""
+    """One HTTPS request with the standard library. Every failure becomes a GeminiError that says
+    which kind it was: Google answered with an error, Google never answered in time, or no connection."""
 
     def post_json(self, url: str, headers: Mapping[str, str], body: Mapping, timeout_s: float) -> Mapping:
         request = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
                                          headers={"Content-Type": "application/json", **headers})
+        return self._send(request, timeout_s)
+
+    def get_json(self, url: str, headers: Mapping[str, str], timeout_s: float) -> Mapping:
+        return self._send(urllib.request.Request(url, method="GET", headers=dict(headers)), timeout_s)
+
+    @staticmethod
+    def _send(request: urllib.request.Request, timeout_s: float) -> Mapping:
         try:
             with urllib.request.urlopen(request, timeout=timeout_s) as response:
                 return json.loads(response.read().decode("utf-8"))
@@ -124,13 +138,18 @@ class UrllibJsonPoster:
             detail = (body.get("error") or {}).get("message", "") if isinstance(body, Mapping) else ""
             raise GeminiError(f"Gemini HTTP {exc.code}: {detail or exc.reason}", status=exc.code,
                               retry_after_s=retry_delay_s(body, exc.headers.get("Retry-After"))) from None
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise GeminiError(f"Gemini unreachable: {exc}") from None
+        except TimeoutError:
+            raise GeminiError(f"Gemini sent no answer within {timeout_s:.0f} s (timed out)", timed_out=True) from None
+        except urllib.error.URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise GeminiError(f"Gemini sent no answer within {timeout_s:.0f} s (timed out)",
+                                  timed_out=True) from None
+            raise GeminiError(f"Gemini unreachable: could not connect ({exc.reason})") from None
 
 
 class GeminiTransport:
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, *, thinking_level: str | None = "low",
-                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = 30.0,
+                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
                  sleep: Callable[[float], None] = time.sleep) -> None:
         if not api_key:
             raise ValueError("a Gemini API key is required")
@@ -147,12 +166,27 @@ class GeminiTransport:
 
     def send(self, system: str, user: str, max_output_tokens: int) -> VendorReply:
         body = gemini_request(system, user, max_output_tokens, self._thinking)
+        timeouts = 0
         for attempt in range(MAX_ATTEMPTS):
             try:
                 response = self._poster.post_json(self._url, {"x-goog-api-key": self._key}, body, self._timeout)
                 return parse_gemini_response(response, self._model)
             except GeminiError as exc:
-                if exc.status not in RETRYABLE or attempt == MAX_ATTEMPTS - 1:
+                timeouts += exc.timed_out
+                retry = exc.status in RETRYABLE or (exc.timed_out and timeouts == 1)   # a timeout is retried once
+                if not retry or attempt == MAX_ATTEMPTS - 1:
                     raise
-                self._sleep(min(exc.retry_after_s or BACKOFF_S[attempt], MAX_WAIT_S))
+                if not exc.timed_out:
+                    self._sleep(min(exc.retry_after_s or BACKOFF_S[attempt], MAX_WAIT_S))
         raise GeminiError("unreachable")   # pragma: no cover
+
+
+def gemini_model_info(api_key: str, model: str, getter: object, timeout_s: float = 15.0,
+                      base_url: str = BASE_URL) -> Mapping:
+    """Fast check used by `python -m curaai.app.check`: ask Google for the model's details.
+
+    No text is generated, so Google answers in about a second. If even this times out, the
+    network (not Gemini) is the problem. A 404 means the model name is wrong; 400/403 the key.
+    """
+    url = f"{base_url}/models/{quote(model, safe='.-_')}"
+    return getter.get_json(url, {"x-goog-api-key": api_key}, timeout_s)

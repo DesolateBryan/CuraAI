@@ -33,7 +33,9 @@ from curaai.adapters.model import (
     BedrockConverseTransport, CostGuard, GatewayExtractSymptoms, GatewayMatchFlags, GatewayPickRelevantItems,
     GatewaySelectFollowUp, ModelGateway, ModelPricing,
 )
-from curaai.adapters.model.gemini_transport import DEFAULT_MODEL as DEFAULT_GEMINI_MODEL, GeminiTransport
+from curaai.adapters.model.gemini_transport import DEFAULT_MODEL as DEFAULT_GEMINI_MODEL
+from curaai.adapters.model.gemini_transport import DEFAULT_TIMEOUT_S as DEFAULT_GEMINI_TIMEOUT_S
+from curaai.adapters.model.gemini_transport import GeminiTransport
 from curaai.adapters.model.local_rules import LocalRulesTransport
 from curaai.adapters.model.no_model_transport import NoModelTransport
 from curaai.adapters.observability import (
@@ -71,6 +73,7 @@ class Config:
     gemini_api_key: str = field(default="", repr=False)   # from .env or the environment; never commit or print it
     gemini_model: str = DEFAULT_GEMINI_MODEL
     gemini_thinking_level: str = "low"             # "" to leave the model default
+    gemini_timeout_s: float = DEFAULT_GEMINI_TIMEOUT_S
     aws_region: str = "us-east-1"
     mock_epic_api_key: str = "mock-curaai-key-0000"
     audit_log_path: str = "./audit.jsonl"
@@ -98,6 +101,7 @@ class Config:
                 gemini_api_key=get("gemini_api_key", "") or env.get("GEMINI_API_KEY", "").strip(),
                 gemini_model=get("gemini_model", d.gemini_model),
                 gemini_thinking_level=get("gemini_thinking_level", d.gemini_thinking_level),
+                gemini_timeout_s=float(get("gemini_timeout_s", str(d.gemini_timeout_s))),
                 mock_epic_api_key=get("mock_epic_api_key", d.mock_epic_api_key),
                 audit_log_path=get("audit_log_path", d.audit_log_path), clinic_tz=get("clinic_tz", d.clinic_tz),
                 clock_now=get("clock_now", ""), mockchart_page=get("mockchart_page", ""),
@@ -188,7 +192,8 @@ def build_container(config: Config, *, bedrock_client: object | None = None,
         transport = BedrockConverseTransport(bedrock_client, config.bedrock_model_id)
     elif config.model_backend == "gemini":
         transport = GeminiTransport(config.gemini_api_key, config.gemini_model,
-                                    thinking_level=config.gemini_thinking_level or None, poster=gemini_poster)
+                                    thinking_level=config.gemini_thinking_level or None, poster=gemini_poster,
+                                    timeout_s=config.gemini_timeout_s)
     elif config.model_backend == "local":
         transport = LocalRulesTransport()                  # demo reader, no network, no cost
     else:
