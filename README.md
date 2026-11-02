@@ -89,6 +89,18 @@ Select-String -Path audit.jsonl -Pattern 'model_gateway_error|model_output_rejec
 or `Gemini HTTP 400: API key not valid`). `model_output_rejected` lines give the safety check's reason.
 Gemini's per-minute limit is retried automatically (up to 3 tries, waiting as long as Google asks).
 
+**`Gemini sent no answer within 60 s (timed out)`** means the request left your computer but no answer
+came back in time. (Older versions said `Gemini unreachable: The read operation timed out` after 30 s.)
+The setup check tells the two possible causes apart:
+
+| Setup check says | Cause | Fix |
+|---|---|---|
+| `[FAIL] Gemini connection: … can't reach Google's API` | The network blocks or stalls Google's API (common on school/work Wi-Fi, VPNs, firewalls) | Try another network; a phone hotspot is a quick test |
+| `[OK] Gemini connection` then `[FAIL] Gemini test call: … did not answer within 60 s` | Google is reachable, but the model is slow right now | Add `CURAAI_GEMINI_TIMEOUT_S=120` to `.env`, or a lighter model via `CURAAI_GEMINI_MODEL` |
+| `[WARN] Gemini test call: answered in 40 s … slow` | Works, but close to the limit | Same as above |
+
+Each timeout is retried once automatically before the case falls back to the fixed chart pull.
+
 ### Use a real AI model: Google Gemini
 
 1. Sign in at **https://aistudio.google.com/apikey** with a Google account and click **Create API key**.
@@ -99,7 +111,8 @@ Gemini's per-minute limit is retried automatically (up to 3 tries, waiting as lo
    CURAAI_GEMINI_API_KEY=paste-your-key-here
    ```
    `.env` is in `.gitignore`, so the key is never committed. Optional: `CURAAI_GEMINI_MODEL`
-   (default `gemini-3.8-flash`) and `CURAAI_GEMINI_THINKING_LEVEL` (default `low`).
+   (default `gemini-3.8-flash`), `CURAAI_GEMINI_THINKING_LEVEL` (default `low`) and
+   `CURAAI_GEMINI_TIMEOUT_S` (seconds to wait for each answer, default `60`).
 3. Run `python -m curaai.app.main`. The first line should say `model=gemini (gemini-3.8-flash)`.
 
 To check it is really Gemini: in `audit.jsonl`, the `model_gateway_call` lines show
@@ -231,6 +244,7 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **"AI screening was unavailable" is now explainable and less likely.**
   - The gateway logs the model service's own error message (scrubbed of identifiers), not just the error type.
   - Gemini rate limits (429) and brief outages (500/503) are retried up to 3 times, honoring Google's retry delay (capped at 30 s). Free keys have a per-minute limit, and the demo sends six patients at once.
+  - Each Gemini call waits up to 60 s (`CURAAI_GEMINI_TIMEOUT_S`); a timeout is retried once. Errors say whether Google answered with an error, never answered in time, or couldn't be reached. The setup check first looks up the model (no text generated, about 1 s) to separate a blocked network, bad key or wrong model name from a slow model, then times a tiny real answer.
   - Parsers normalize harmless style differences ("Cough", "chest pain", an ISO timestamp for a date, "true" as a string) before the core validator, which is still strict about values.
 - **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
 - **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.

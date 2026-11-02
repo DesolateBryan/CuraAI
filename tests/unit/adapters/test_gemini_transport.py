@@ -224,3 +224,82 @@ def test_the_gateway_keeps_googles_reason_in_the_audit_log():
                                    "fhir_bundle": fhir_bundles()["p1"]})
         (error,) = [e for e in read_audit_log(Path(tmp) / "audit.jsonl") if e.action == "model_gateway_error"][:1]
         assert error.detail["message"].startswith("Gemini HTTP 400: API key not valid")
+
+
+# ---- timeouts: retried once, and the message says it was a timeout --------------------------------------
+import socket  # noqa: E402
+import urllib.error  # noqa: E402
+
+from curaai.adapters.model.gemini_transport import DEFAULT_TIMEOUT_S, UrllibJsonPoster, gemini_model_info  # noqa: E402
+
+
+def timed_out():
+    return GeminiError("Gemini sent no answer within 60 s (timed out)", timed_out=True)
+
+
+def test_a_timeout_is_retried_once_without_waiting():
+    waits = []
+    poster = FlakyPoster(timed_out())
+    reply = GeminiTransport(KEY, poster=poster, sleep=waits.append).send("S", '{"items": [], "symptom_ids": []}', 300)
+    assert reply.text == '{"item_ids": []}' and poster.calls == 2 and waits == []
+
+
+def test_two_timeouts_give_up():
+    poster = FlakyPoster(timed_out(), timed_out(), timed_out())
+    with pytest.raises(GeminiError) as info:
+        GeminiTransport(KEY, poster=poster, sleep=lambda s: None).send("S", '{"items": []}', 300)
+    assert poster.calls == 2 and info.value.timed_out
+
+
+def test_default_timeout_is_longer_and_configurable():
+    assert DEFAULT_TIMEOUT_S >= 60
+    seen = []
+
+    class Recorder(FakePoster):
+        def post_json(self, url, headers, body, timeout_s):
+            seen.append(timeout_s)
+            return super().post_json(url, headers, body, timeout_s)
+
+    GeminiTransport(KEY, poster=Recorder()).send("S", '{"items": [], "symptom_ids": []}', 300)
+    with tempfile.TemporaryDirectory() as tmp:
+        config = Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "CURAAI_GEMINI_API_KEY": KEY,
+                                  "CURAAI_GEMINI_TIMEOUT_S": "120", "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "a.jsonl"),
+                                  "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
+        assert config.gemini_timeout_s == 120.0
+        k = build_container(config, gemini_poster=Recorder())
+        text, sent = first_message("p1")
+        k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
+                                   "fhir_bundle": fhir_bundles()["p1"]})
+    assert seen[0] == DEFAULT_TIMEOUT_S and set(seen[1:]) == {120.0}
+
+
+@pytest.mark.parametrize("raised, timed", [
+    (socket.timeout("The read operation timed out"), True),
+    (urllib.error.URLError(socket.timeout("timed out")), True),
+    (urllib.error.URLError(ConnectionRefusedError("refused")), False),
+])
+def test_urllib_errors_say_whether_it_was_a_timeout(raised, timed):
+    import urllib.request
+
+    def boom(request, timeout):
+        raise raised
+    real, urllib.request.urlopen = urllib.request.urlopen, boom
+    try:
+        with pytest.raises(GeminiError) as info:
+            UrllibJsonPoster().post_json("https://x", {}, {}, 45)
+    finally:
+        urllib.request.urlopen = real
+    assert info.value.timed_out is timed
+    assert ("no answer within 45 s" in str(info.value)) is timed
+    assert ("could not connect" in str(info.value)) is (not timed)
+
+
+def test_model_lookup_is_a_get_with_the_key_in_a_header():
+    class Getter:
+        def get_json(self, url, headers, timeout_s):
+            self.args = (url, headers, timeout_s)
+            return {"name": "models/gemini-3.8-flash"}
+    g = Getter()
+    assert gemini_model_info(KEY, "gemini-3.8-flash", g)["name"].endswith("flash")
+    url, headers, timeout_s = g.args
+    assert url.endswith("/models/gemini-3.8-flash") and headers == {"x-goog-api-key": KEY} and timeout_s == 15.0
