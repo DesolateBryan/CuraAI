@@ -74,6 +74,7 @@ class Config:
     gemini_model: str = DEFAULT_GEMINI_MODEL
     gemini_thinking_level: str = "low"             # "" to leave the model default
     gemini_timeout_s: float = DEFAULT_GEMINI_TIMEOUT_S
+    gemini_fallback_model: str = ""                # backup model when the main one is overloaded (503)
     aws_region: str = "us-east-1"
     mock_epic_api_key: str = "mock-curaai-key-0000"
     audit_log_path: str = "./audit.jsonl"
@@ -102,6 +103,7 @@ class Config:
                 gemini_model=get("gemini_model", d.gemini_model),
                 gemini_thinking_level=get("gemini_thinking_level", d.gemini_thinking_level),
                 gemini_timeout_s=float(get("gemini_timeout_s", str(d.gemini_timeout_s))),
+                gemini_fallback_model=get("gemini_fallback_model", d.gemini_fallback_model),
                 mock_epic_api_key=get("mock_epic_api_key", d.mock_epic_api_key),
                 audit_log_path=get("audit_log_path", d.audit_log_path), clinic_tz=get("clinic_tz", d.clinic_tz),
                 clock_now=get("clock_now", ""), mockchart_page=get("mockchart_page", ""),
@@ -193,7 +195,8 @@ def build_container(config: Config, *, bedrock_client: object | None = None,
     elif config.model_backend == "gemini":
         transport = GeminiTransport(config.gemini_api_key, config.gemini_model,
                                     thinking_level=config.gemini_thinking_level or None, poster=gemini_poster,
-                                    timeout_s=config.gemini_timeout_s)
+                                    timeout_s=config.gemini_timeout_s,
+                                    fallback_model=config.gemini_fallback_model or None)
     elif config.model_backend == "local":
         transport = LocalRulesTransport()                  # demo reader, no network, no cost
     else:
@@ -252,7 +255,10 @@ def main() -> None:
                  "(or press Ctrl+C in it), then start again.")
     container = build_container(config)
     app = build_app(container, config)
-    model = f"{config.model_backend} ({config.gemini_model})" if config.model_backend == "gemini" else config.model_backend
+    model = config.model_backend
+    if config.model_backend == "gemini":
+        backup = f", backup {config.gemini_fallback_model}" if config.gemini_fallback_model else ""
+        model = f"gemini ({config.gemini_model}{backup})"
     print(f"CuraAI: model={model} drugs={config.drug_adapter} audit={config.audit_log_path}")
     print(f"Open http://{config.host}:{config.port}/mockchart")
     uvicorn.run(app, host=config.host, port=config.port)

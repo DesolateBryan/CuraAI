@@ -21,7 +21,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from curaai.adapters.model.gemini_transport import GeminiError, GeminiTransport, UrllibJsonPoster, gemini_model_info
+from curaai.adapters.model.gemini_transport import (
+    GeminiError, GeminiTransport, UrllibJsonPoster, gemini_model_info,
+    gemini_text_models,
+)
 from curaai.app.main import Config, load_env_file, port_in_use
 
 OK, WARN, FAIL = "ok", "warn", "fail"
@@ -116,6 +119,7 @@ def gemini_checks(config: Config, poster: object, clock: Callable[[], float]) ->
         else:
             hint = "Google returned an error; try again in a minute"
         return [Check(FAIL, "Gemini connection", f"{exc}. Next step: {hint}")]
+    checks.append(backup_model_check(config, poster))
 
     started = clock()
     try:
@@ -133,12 +137,35 @@ def gemini_checks(config: Config, poster: object, clock: Callable[[], float]) ->
         if exc.timed_out:
             hint = (f"Google is reachable but the model did not answer within {config.gemini_timeout_s:.0f} s. "
                     "Set CURAAI_GEMINI_TIMEOUT_S=120 in .env, or try a lighter model with CURAAI_GEMINI_MODEL")
+        elif exc.status in (500, 503):
+            hint = ("Google's servers are overloaded for this model right now (not your key or code). "
+                    "Wait a few minutes, or set CURAAI_GEMINI_FALLBACK_MODEL in .env so CuraAI switches "
+                    "to a second model when this happens")
         elif exc.status == 429:
             hint = "the key's per-minute or daily limit is used up; wait a minute (or until tomorrow) and retry"
         else:
             hint = "see the message above"
         checks.append(Check(FAIL, "Gemini test call", f"{exc}. Next step: {hint}"))
     return checks
+
+
+def backup_model_check(config: Config, poster: object) -> Check:
+    """Is a backup model set, and does it exist? If none is set, suggest names this key can use."""
+    key, backup = config.gemini_api_key, config.gemini_fallback_model
+    if backup:
+        try:
+            gemini_model_info(key, backup, poster, timeout_s=15)
+            return Check(OK, "Gemini backup model", f"{backup} (used if {config.gemini_model} is overloaded)")
+        except GeminiError as exc:
+            return Check(FAIL, "Gemini backup model", f"{backup}: {exc}. Next step: pick a name from "
+                                                      "the list in AI Studio, or remove CURAAI_GEMINI_FALLBACK_MODEL")
+    try:
+        names = [n for n in gemini_text_models(key, poster) if "flash" in n and n != config.gemini_model]
+    except GeminiError:
+        names = []
+    suggestion = f" Models your key can use: {', '.join(names[:6])}." if names else ""
+    return Check(WARN, "Gemini backup model", "none set, so if Google says the model is overloaded (HTTP 503) "
+                 f"the case runs without AI. Add CURAAI_GEMINI_FALLBACK_MODEL=<name> to .env.{suggestion}")
 
 
 def main() -> int:

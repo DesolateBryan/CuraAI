@@ -19,6 +19,11 @@ Choices:
   * "too many requests" (429) and brief outages (500/503) are retried up to 3 times,
     waiting as long as Google asks (RetryInfo / Retry-After), at most 30 s. Free keys
     have a per-minute limit, and the demo sends six patients at once
+  * backup model (CURAAI_GEMINI_FALLBACK_MODEL): if the main model is still busy after its
+    retries (503 overloaded, 500, 429 limit, or timeout), the same request goes to the backup
+    model once before the case falls back to the fixed chart pull. 503 "model overloaded" is
+    Google's side and often lasts minutes; free-tier limits are per model, so a second model
+    also helps with 429. The audit log's "model" field shows which model answered
   * standard library only (urllib), so no extra package to install
 
 PHI (ADR-006): the Gemini Developer API (a Google AI Studio key) is for SYNTHETIC
@@ -150,7 +155,7 @@ class UrllibJsonPoster:
 class GeminiTransport:
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, *, thinking_level: str | None = "low",
                  poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
-                 sleep: Callable[[float], None] = time.sleep) -> None:
+                 sleep: Callable[[float], None] = time.sleep, fallback_model: str | None = None) -> None:
         if not api_key:
             raise ValueError("a Gemini API key is required")
         self._key = api_key
@@ -158,19 +163,34 @@ class GeminiTransport:
         self._thinking = thinking_level
         self._poster = poster or UrllibJsonPoster()
         self._url = gemini_url(model, base_url)
+        self._fallback = fallback_model if fallback_model and fallback_model != model else None
+        self._fallback_url = gemini_url(self._fallback, base_url) if self._fallback else None
         self._timeout = timeout_s
         self._sleep = sleep
 
     def __repr__(self) -> str:
-        return f"GeminiTransport(model={self._model!r}, api_key=***)"
+        return f"GeminiTransport(model={self._model!r}, fallback={self._fallback!r}, api_key=***)"
 
     def send(self, system: str, user: str, max_output_tokens: int) -> VendorReply:
         body = gemini_request(system, user, max_output_tokens, self._thinking)
+        try:
+            return self._send_to(self._url, self._model, body)
+        except GeminiError as exc:
+            busy = exc.status in RETRYABLE or exc.timed_out
+            if not (busy and self._fallback_url):
+                raise
+            try:
+                return self._send_to(self._fallback_url, self._fallback, body)
+            except GeminiError as backup_exc:
+                raise GeminiError(f"{exc}; backup model {self._fallback}: {backup_exc}", status=backup_exc.status,
+                                  timed_out=backup_exc.timed_out) from None
+
+    def _send_to(self, url: str, model: str, body: Mapping) -> VendorReply:
         timeouts = 0
         for attempt in range(MAX_ATTEMPTS):
             try:
-                response = self._poster.post_json(self._url, {"x-goog-api-key": self._key}, body, self._timeout)
-                return parse_gemini_response(response, self._model)
+                response = self._poster.post_json(url, {"x-goog-api-key": self._key}, body, self._timeout)
+                return parse_gemini_response(response, model)
             except GeminiError as exc:
                 timeouts += exc.timed_out
                 retry = exc.status in RETRYABLE or (exc.timed_out and timeouts == 1)   # a timeout is retried once
@@ -190,3 +210,13 @@ def gemini_model_info(api_key: str, model: str, getter: object, timeout_s: float
     """
     url = f"{base_url}/models/{quote(model, safe='.-_')}"
     return getter.get_json(url, {"x-goog-api-key": api_key}, timeout_s)
+
+
+def gemini_text_models(api_key: str, getter: object, timeout_s: float = 15.0, base_url: str = BASE_URL) -> list[str]:
+    """Names of the models this key can generate text with (for the setup check's backup-model hint)."""
+    reply = getter.get_json(f"{base_url}/models?pageSize=1000", {"x-goog-api-key": api_key}, timeout_s)
+    names = []
+    for m in reply.get("models") or []:
+        if isinstance(m, Mapping) and "generateContent" in (m.get("supportedGenerationMethods") or []):
+            names.append(str(m.get("name", "")).removeprefix("models/"))
+    return sorted(n for n in names if n)
