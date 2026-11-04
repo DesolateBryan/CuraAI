@@ -68,15 +68,15 @@ python -m curaai.app.check
 ```
 
 It shows what your `.env` actually selects (API keys hidden), whether the settings are valid,
-whether port 8000 is already taken, whether the MockChart page was found and, for Gemini,
-makes one tiny test call so a bad key shows up immediately.
+whether port 8000 is already taken, whether the MockChart page was found and, for Groq or Gemini,
+checks the connection and key, then makes one tiny timed test call.
 
 | What you see | What it means | Fix |
 |---|---|---|
 | Panel says **"Can't reach the CuraAI server"** | The server isn't running, or it stopped | Start `python -m curaai.app.main` again; the panel reconnects by itself |
 | Server says **"something is already running on 127.0.0.1:8000"** | An old CuraAI server is still open | Close that PowerShell window (or Ctrl+C in it), then start again |
 | Server says **"CuraAI can't start: …"** | A setting in `.env` is wrong (e.g. Gemini chosen but no key) | Run the setup check; it names the setting |
-| Reviews say **"AI screening was unavailable"** | Reading the message failed for that case: backend set to `none`, Gemini refused the call (bad key, per-minute limit, no internet), or Gemini's answer failed the safety check | Run the setup check, then see the exact reason in the audit log (command below) |
+| Reviews say **"AI screening was unavailable"** | Reading the message failed for that case: backend set to `none`, Groq/Gemini refused the call (bad key, per-minute or daily limit, no internet), or the answer failed the safety check | Run the setup check, then see the exact reason in the audit log (command below) |
 | Want to run the patients again | | Click **Re-run** in the CuraAI panel, or MockChart's **Reset test data** |
 
 To see why a case fell back, show the last few failures from the audit log (PowerShell, in the CuraAI folder):
@@ -114,7 +114,41 @@ If the main model is still overloaded after its retries, the same request goes t
 audit log's `"model"` field shows which one answered. (Free-tier limits are per model, so a backup also
 helps with `429` limits.)
 
-### Use a real AI model: Google Gemini
+**"Too much traffic / not enough tokens"** (`HTTP 429`, "rate limit reached", "quota exceeded"): free Groq
+and Gemini keys have a per-minute limit (requests and tokens) and a daily token limit. CuraAI keeps a
+demo inside them by default:
+
+| Setting (in `.env`) | Default | What it does |
+|---|---|---|
+| `CURAAI_AI_USE_FOR` | `reading` | Only reading the patient's message uses the AI; choosing the follow-up, picking chart items and matching drug flags use the local reader. A full six-patient demo: **16 AI calls instead of 30** |
+| `CURAAI_AI_MAX_PER_MINUTE` | `8` | Spaces requests so the service doesn't refuse them. A full demo run takes about 2 minutes; lower it if you still see 429 |
+| (always on) | | The same request is never paid for twice: page reloads, Reset and Re-run reuse earlier answers (audit log shows `(cached)`, cost 0) |
+
+A **daily** limit resets the next day. Until then, use `CURAAI_MODEL_BACKEND=local`, a teammate's key,
+or the other service.
+
+### Use a real AI model: Groq (recommended) or Google Gemini
+
+**Groq** (free tier, fast):
+
+1. Sign in at **https://console.groq.com/keys** and click **Create API Key**. Each teammate can make
+   their own; don't share keys in chat.
+2. In your `.env` (copy it from `.env.example` if you haven't):
+   ```
+   CURAAI_MODEL_BACKEND=groq
+   CURAAI_GROQ_API_KEY=paste-your-key-here
+   ```
+   Optional: `CURAAI_GROQ_MODEL` (default `openai/gpt-oss-20b`), `CURAAI_GROQ_REASONING_EFFORT`
+   (default `low`), `CURAAI_GROQ_TIMEOUT_S` (default `60`) and `CURAAI_GROQ_FALLBACK_MODEL`.
+3. Run `python -m curaai.app.check`. You want `[ OK ] Groq connection` and `[ OK ] Groq test call`.
+4. Run `python -m curaai.app.main`. The first line should say
+   `model=groq (openai/gpt-oss-20b; reading messages only, max 8/min)`.
+
+In `audit.jsonl`, `model_gateway_call` lines for `extract_symptoms` show `"model": "openai/gpt-oss-20b"`.
+Groq's free tier (per model) is about 30 requests and 8K tokens per minute and 200K tokens per day.
+**Synthetic data only**, as with Gemini.
+
+**Google Gemini:**
 
 1. Sign in at **https://aistudio.google.com/apikey** with a Google account and click **Create API key**.
    Each teammate can make their own free key; don't share keys in chat.
@@ -235,6 +269,8 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 - **`CostGuard` lives in `adapters/model`**, not observability, because it wraps `GatewayClient` and adapter packages never import each other. It enforces the per-case dollar cap and a daily budget. Ring 2 already enforces the call, lookup and follow-up caps. Tripping on a spike in failed validations is deferred until the evaluation run gives a threshold.
 - **Metrics come from the audit log** (`case_metrics`, ADR-008), so the numbers can never disagree with what auditors see.
 - **Model-call cap doubled from 6 to 12 per case** (team decision, 2026-10-26). In the MockChart run, a two-follow-up case used all 6 and lost medication flagging; with 12 the same case uses 7 and keeps it. The lookup, follow-up and $0.25 caps are still the ADR-011 proposals. Record this as an amendment to ADR-011.
+- **Groq is a supported model backend** (`CURAAI_MODEL_BACKEND=groq`, `adapters/model/groq_transport.py`), added when the free Gemini key ran out of quota. It uses Groq's OpenAI-compatible chat completions with JSON mode, `openai/gpt-oss-20b` by default, low reasoning effort, and the key in the `Authorization` header. Gemini and Groq share `http_transport.py`, which handles timeouts, retries (429/500/503), the backup model and clear error wording. **ADR note:** record Groq in the ADR-001 amendment alongside Gemini (synthetic data only; a BAA before any real PHI).
+- **Quota savers for hosted models** (`adapters/model/quota.py`): `PortRouter` sends only `extract_symptoms` to Groq/Gemini by default (`CURAAI_AI_USE_FOR=reading`), `ReplyCache` answers repeated requests without a new call, and `Pacer` spaces requests (`CURAAI_AI_MAX_PER_MINUTE`, default 8). The gateway still audits every call, and the validator still checks every answer.
 - **The web layer is split for testing.** `WebController` makes every HTTP decision (request checks, status codes, response shapes) with no framework imported. The FastAPI routes each make one call to it. Collaborators are injected as small Protocols, so the web package imports no other adapter.
 - **The backend serves MockChart at `/mockchart` with the bridge added**, so the page and API share an origin (no CORS) and the team's HTML file stays untouched. The raw FHIR bundle stops at the EHR adapter's bundle source.
 - **Follow-up questions reach the page through an outbox** that the bridge polls.

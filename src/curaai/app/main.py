@@ -16,8 +16,9 @@ Run the demo (no cloud account needed; the default backend is the local rule-bas
 import os
 import socket
 import sys
+import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -36,8 +37,11 @@ from curaai.adapters.model import (
 from curaai.adapters.model.gemini_transport import DEFAULT_MODEL as DEFAULT_GEMINI_MODEL
 from curaai.adapters.model.gemini_transport import DEFAULT_TIMEOUT_S as DEFAULT_GEMINI_TIMEOUT_S
 from curaai.adapters.model.gemini_transport import GeminiTransport
+from curaai.adapters.model.groq_transport import DEFAULT_MODEL as DEFAULT_GROQ_MODEL
+from curaai.adapters.model.groq_transport import GroqTransport
 from curaai.adapters.model.local_rules import LocalRulesTransport
 from curaai.adapters.model.no_model_transport import NoModelTransport
+from curaai.adapters.model.quota import Pacer, PortRouter, ReplyCache
 from curaai.adapters.observability import (
     LoggedExtractSymptoms, LoggedMatchFlags, LoggedPickRelevantItems, LoggedSelectFollowUp,
 )
@@ -59,7 +63,8 @@ BRIDGE_JS = Path(__file__).resolve().parents[1] / "adapters" / "web" / "static" 
 CHOICES = {
     "ehr_adapter": ("mock_epic",),                 # a real Epic adapter needs SMART on FHIR (deferred, ADR-017)
     "drug_adapter": ("mock", "openfda"),
-    "model_backend": ("local", "gemini", "bedrock", "none"),
+    "model_backend": ("local", "groq", "gemini", "bedrock", "none"),
+    "ai_use_for": ("reading", "all"),           # reading = only the patient's message goes to Groq/Gemini
 }
 
 
@@ -75,6 +80,13 @@ class Config:
     gemini_thinking_level: str = "low"             # "" to leave the model default
     gemini_timeout_s: float = DEFAULT_GEMINI_TIMEOUT_S
     gemini_fallback_model: str = ""                # backup model when the main one is overloaded (503)
+    groq_api_key: str = field(default="", repr=False)     # from .env or the environment; never commit or print it
+    groq_model: str = DEFAULT_GROQ_MODEL
+    groq_reasoning_effort: str = "low"             # "" to leave the model default
+    groq_timeout_s: float = DEFAULT_GEMINI_TIMEOUT_S
+    groq_fallback_model: str = ""                  # backup model when the main one is busy
+    ai_use_for: str = "reading"                    # Groq/Gemini: "all" = every model step (about 2x the calls)
+    ai_max_per_minute: float = 8.0                 # Groq/Gemini request spacing for free keys; 0 = no limit
     aws_region: str = "us-east-1"
     mock_epic_api_key: str = "mock-curaai-key-0000"
     audit_log_path: str = "./audit.jsonl"
@@ -104,6 +116,13 @@ class Config:
                 gemini_thinking_level=get("gemini_thinking_level", d.gemini_thinking_level),
                 gemini_timeout_s=float(get("gemini_timeout_s", str(d.gemini_timeout_s))),
                 gemini_fallback_model=get("gemini_fallback_model", d.gemini_fallback_model),
+                groq_api_key=get("groq_api_key", "") or env.get("GROQ_API_KEY", "").strip(),
+                groq_model=get("groq_model", d.groq_model),
+                groq_reasoning_effort=get("groq_reasoning_effort", d.groq_reasoning_effort),
+                groq_timeout_s=float(get("groq_timeout_s", str(d.groq_timeout_s))),
+                groq_fallback_model=get("groq_fallback_model", d.groq_fallback_model),
+                ai_use_for=get("ai_use_for", d.ai_use_for).lower(),
+                ai_max_per_minute=float(get("ai_max_per_minute", str(d.ai_max_per_minute))),
                 mock_epic_api_key=get("mock_epic_api_key", d.mock_epic_api_key),
                 audit_log_path=get("audit_log_path", d.audit_log_path), clinic_tz=get("clinic_tz", d.clinic_tz),
                 clock_now=get("clock_now", ""), mockchart_page=get("mockchart_page", ""),
@@ -127,6 +146,11 @@ class Config:
         if self.model_backend == "gemini" and not self.gemini_api_key:
             raise ValueError("CURAAI_GEMINI_API_KEY is required when CURAAI_MODEL_BACKEND=gemini "
                              "(get a free key at https://aistudio.google.com/apikey)")
+        if self.model_backend == "groq" and not self.groq_api_key:
+            raise ValueError("CURAAI_GROQ_API_KEY is required when CURAAI_MODEL_BACKEND=groq "
+                             "(get a free key at https://console.groq.com/keys)")
+        if self.ai_max_per_minute < 0:
+            raise ValueError("CURAAI_AI_MAX_PER_MINUTE must be 0 (no limit) or more")
         if not self.mock_epic_api_key:
             raise ValueError("CURAAI_MOCK_EPIC_API_KEY is required")
 
@@ -169,7 +193,9 @@ def build_clock(config: Config) -> ClockPort:
 
 
 def build_container(config: Config, *, bedrock_client: object | None = None,
-                    gemini_poster: object | None = None) -> Container:
+                    gemini_poster: object | None = None,
+                    groq_poster: object | None = None,
+                    model_sleep: Callable[[float], None] = time.sleep) -> Container:
     clock = build_clock(config)
     audit = JsonlAuditLog(config.audit_log_path)
     limits = CaseLimits()
@@ -196,13 +222,27 @@ def build_container(config: Config, *, bedrock_client: object | None = None,
         transport = GeminiTransport(config.gemini_api_key, config.gemini_model,
                                     thinking_level=config.gemini_thinking_level or None, poster=gemini_poster,
                                     timeout_s=config.gemini_timeout_s,
-                                    fallback_model=config.gemini_fallback_model or None)
+                                    fallback_model=config.gemini_fallback_model or None, sleep=model_sleep)
+    elif config.model_backend == "groq":
+        transport = GroqTransport(config.groq_api_key, config.groq_model,
+                                  reasoning_effort=config.groq_reasoning_effort or None, poster=groq_poster,
+                                  timeout_s=config.groq_timeout_s,
+                                  fallback_model=config.groq_fallback_model or None, sleep=model_sleep)
     elif config.model_backend == "local":
         transport = LocalRulesTransport()                  # demo reader, no network, no cost
     else:
         transport = NoModelTransport()                     # ADR-011 fallback only
     pricing = ModelPricing(config.price_in_per_mtok, config.price_out_per_mtok)
-    client = CostGuard(ModelGateway(transport, pricing, audit, clock), limits, config.daily_budget_usd, audit, clock)
+    hosted = config.model_backend in ("groq", "gemini")     # free keys: per-minute and daily limits
+    if hosted:                                             # quota.py: space requests, never pay twice
+        if config.ai_max_per_minute:
+            transport = Pacer(transport, config.ai_max_per_minute, sleep=model_sleep)
+        transport = ReplyCache(transport)
+    gateway = ModelGateway(transport, pricing, audit, clock)
+    if hosted and config.ai_use_for == "reading":
+        local = ModelGateway(LocalRulesTransport(), pricing, audit, clock)
+        gateway = PortRouter(local, {"extract_symptoms": gateway})   # only the patient's message goes out
+    client = CostGuard(gateway, limits, config.daily_budget_usd, audit, clock)
     extractor = LoggedExtractSymptoms(GatewayExtractSymptoms(client), audit, clock)
     selector = LoggedSelectFollowUp(GatewaySelectFollowUp(client), audit, clock)
     picker = LoggedPickRelevantItems(GatewayPickRelevantItems(client), audit, clock)
@@ -256,9 +296,13 @@ def main() -> None:
     container = build_container(config)
     app = build_app(container, config)
     model = config.model_backend
-    if config.model_backend == "gemini":
-        backup = f", backup {config.gemini_fallback_model}" if config.gemini_fallback_model else ""
-        model = f"gemini ({config.gemini_model}{backup})"
+    if config.model_backend in ("groq", "gemini"):
+        name, fallback = ((config.groq_model, config.groq_fallback_model) if config.model_backend == "groq"
+                          else (config.gemini_model, config.gemini_fallback_model))
+        backup = f", backup {fallback}" if fallback else ""
+        steps = "reading messages only" if config.ai_use_for == "reading" else "all steps"
+        pace = f", max {config.ai_max_per_minute:g}/min" if config.ai_max_per_minute else ""
+        model = f"{config.model_backend} ({name}{backup}; {steps}{pace})"
     print(f"CuraAI: model={model} drugs={config.drug_adapter} audit={config.audit_log_path}")
     print(f"Open http://{config.host}:{config.port}/mockchart")
     uvicorn.run(app, host=config.host, port=config.port)

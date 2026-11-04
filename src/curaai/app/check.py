@@ -25,6 +25,7 @@ from curaai.adapters.model.gemini_transport import (
     GeminiError, GeminiTransport, UrllibJsonPoster, gemini_model_info,
     gemini_text_models,
 )
+from curaai.adapters.model.groq_transport import GroqError, GroqTransport, groq_models, groq_poster
 from curaai.app.main import Config, load_env_file, port_in_use
 
 OK, WARN, FAIL = "ok", "warn", "fail"
@@ -44,6 +45,7 @@ def mask(secret: str) -> str:
 def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
                port_probe: Callable[[str, int], bool] = port_in_use,
                gemini_poster: object | None = None,
+               groq_http: object | None = None,
                clock: Callable[[], float] = time.monotonic) -> list[Check]:
     checks: list[Check] = []
     file_values = load_env_file(env_file)
@@ -66,6 +68,7 @@ def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
 
     model = {"gemini": f"Google Gemini ({config.gemini_model}), key {mask(config.gemini_api_key)}",
              "bedrock": f"AWS Bedrock ({config.bedrock_model_id})",
+             "groq": f"Groq ({config.groq_model}), key {mask(config.groq_api_key)}",
              "local": "local rule-based reader (no AI account needed)",
              "none": "none: no reader, chart pull from the message date only"}[config.model_backend]
     checks.append(Check(OK, "model backend", model))
@@ -87,6 +90,8 @@ def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
 
     if config.model_backend == "gemini":
         checks.extend(gemini_checks(config, gemini_poster or UrllibJsonPoster(), clock))
+    elif config.model_backend == "groq":
+        checks.extend(groq_checks(config, groq_http or groq_poster(), clock))
     elif config.model_backend == "bedrock":
         if importlib.util.find_spec("boto3") is not None:   # look, don't import: only main.py imports SDKs
             checks.append(Check(OK, "Bedrock", "boto3 installed; AWS credentials come from your AWS config"))
@@ -166,6 +171,56 @@ def backup_model_check(config: Config, poster: object) -> Check:
     suggestion = f" Models your key can use: {', '.join(names[:6])}." if names else ""
     return Check(WARN, "Gemini backup model", "none set, so if Google says the model is overloaded (HTTP 503) "
                  f"the case runs without AI. Add CURAAI_GEMINI_FALLBACK_MODEL=<name> to .env.{suggestion}")
+
+
+def groq_checks(config: Config, poster: object, clock: Callable[[], float]) -> list[Check]:
+    """Same two steps as Gemini: a fast model list (network, key, model name), then a timed tiny answer."""
+    key, model = config.groq_api_key, config.groq_model
+    started = clock()
+    try:
+        names = groq_models(key, poster)
+    except GroqError as exc:
+        if exc.timed_out or exc.status is None:
+            hint = ("this computer can't reach Groq. Try another network (school and work Wi-Fi often "
+                    "block it; a phone hotspot is a quick test), and check any VPN or firewall")
+        elif exc.status in (401, 403):
+            hint = "the key was refused. Make a new one at https://console.groq.com/keys and paste it into .env"
+        else:
+            hint = "Groq returned an error; try again in a minute"
+        return [Check(FAIL, "Groq connection", f"{exc}. Next step: {hint}")]
+    took = clock() - started
+    missing = [m for m in (model, config.groq_fallback_model) if m and m not in names]
+    if missing:
+        chat = [n for n in names if not n.startswith(("whisper", "canopylabs/", "meta-llama/llama-prompt-guard"))]
+        return [Check(FAIL, "Groq connection", f"key accepted, but {', '.join(missing)} is not a model this key can "
+                      f"use. Next step: set CURAAI_GROQ_MODEL (or CURAAI_GROQ_FALLBACK_MODEL) to one of: "
+                      f"{', '.join(chat[:8])}")]
+    checks = [Check(OK, "Groq connection", f"Groq reached, key accepted, model {model} available ({took:.1f} s)")]
+
+    started = clock()
+    try:
+        reply = GroqTransport(key, model, reasoning_effort=config.groq_reasoning_effort or None, poster=poster,
+                              timeout_s=config.groq_timeout_s).send(
+            'Reply with exactly this JSON: {"ok": true}', '{"ping": true}', 20)
+        took = clock() - started
+        status = OK if took < config.groq_timeout_s / 2 else WARN
+        detail = f"answered in {took:.1f} s ({reply.model}, {reply.input_tokens + reply.output_tokens} tokens)"
+        if status == WARN:
+            detail += f". That is slow: the demo waits {config.groq_timeout_s:.0f} s per call"
+        checks.append(Check(status, "Groq test call", detail))
+    except GroqError as exc:
+        if exc.status == 429:
+            hint = ("the key's per-minute or daily limit is used up. Wait a minute; if it says tokens per day, "
+                    "it resets tomorrow. Meanwhile CURAAI_MODEL_BACKEND=local runs the demo without AI")
+        elif exc.status == 400:
+            hint = ("Groq refused a setting. If you changed CURAAI_GROQ_MODEL, also set "
+                    "CURAAI_GROQ_REASONING_EFFORT= (empty) since not every model accepts it")
+        elif exc.timed_out:
+            hint = f"Groq is reachable but did not answer within {config.groq_timeout_s:.0f} s. Try again, or raise CURAAI_GROQ_TIMEOUT_S"
+        else:
+            hint = "see the message above"
+        checks.append(Check(FAIL, "Groq test call", f"{exc}. Next step: {hint}"))
+    return checks
 
 
 def main() -> int:
