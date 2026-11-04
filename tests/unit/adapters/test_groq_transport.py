@@ -190,3 +190,45 @@ def test_check_points_at_the_right_fix():
         limit = check(tmp, FakeGroq(errors=[GroqError("Groq HTTP 429: tokens per day", status=429,
                                                       retry_after_s=0.001)] * 3))[0]["Groq test call"]
         assert limit.status == FAIL and "resets tomorrow" in limit.detail
+
+
+# ---- every request names itself (Cloudflare blocks urllib's default "Python-urllib/3.x") ------------------
+def test_requests_send_a_curaai_user_agent_not_pythons_default():
+    import urllib.request
+
+    from curaai.adapters.model.http_transport import USER_AGENT
+    from curaai.adapters.model.groq_transport import groq_poster
+    seen = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b'{"data": []}'
+
+    def fake_urlopen(request, timeout):
+        seen.append({k.lower(): v for k, v in request.header_items()})
+        return Response()
+
+    real, urllib.request.urlopen = urllib.request.urlopen, fake_urlopen
+    try:
+        poster = groq_poster()
+        poster.post_json("https://api.groq.com/openai/v1/chat/completions", {"Authorization": "Bearer k"}, {}, 5)
+        poster.get_json("https://api.groq.com/openai/v1/models", {"Authorization": "Bearer k"}, 5)
+    finally:
+        urllib.request.urlopen = real
+    assert [h["user-agent"] for h in seen] == [USER_AGENT, USER_AGENT]
+    assert not USER_AGENT.startswith("Python-urllib") and seen[0]["authorization"] == "Bearer k"
+
+
+def test_a_bare_403_is_not_called_a_bad_key():
+    with tempfile.TemporaryDirectory() as tmp:
+        class Blocked(FakeGroq):
+            def get_json(self, url, headers, timeout_s):
+                raise GroqError("Groq HTTP 403: Forbidden", status=403)
+        detail = check(tmp, Blocked())[0]["Groq connection"].detail
+        assert "git pull" in detail and "hotspot" in detail and "console.groq.com/keys" not in detail
