@@ -36,8 +36,9 @@ Meetings: Wednesdays right after class.
 - PR #11 (demo fix: stuck panel + setup check): https://github.com/DesolateBryan/CuraAI/pull/11 (merged)
 - PR #12 (why "AI screening was unavailable": logging, Gemini retries, format normalizing): https://github.com/DesolateBryan/CuraAI/pull/12 (merged)
 - PR #13 (Gemini timeouts: 60 s adjustable wait, retry once, two-step setup check): https://github.com/DesolateBryan/CuraAI/pull/13 (merged)
-- PR #14 (Gemini 503 "model overloaded": optional backup model): https://github.com/DesolateBryan/CuraAI/pull/14 (**open**, targets `main`; also included in #15)
-- PR #15 (**Groq** backend + quota savers for free keys): https://github.com/DesolateBryan/CuraAI/pull/15 (**open**, targets `main`)
+- PR #14 (Gemini 503 "model overloaded": optional backup model): https://github.com/DesolateBryan/CuraAI/pull/14 (merged)
+- PR #15 (**Groq** backend + quota savers for free keys): https://github.com/DesolateBryan/CuraAI/pull/15 (merged)
+- PR #16 (fix Groq HTTP 403: send a CuraAI User-Agent): https://github.com/DesolateBryan/CuraAI/pull/16 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -104,6 +105,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **Gemini timeouts** (RJ, 2026-11-02: `Gemini unreachable: The read operation timed out`, ~30 s): not a bad key (instant 400) or wrong model (instant 404); either the network stalls Google's API or the model is slow. PR #13: wait 60 s (`CURAAI_GEMINI_TIMEOUT_S`), retry a timeout once, messages say "timed out" vs "could not connect". `python -m curaai.app.check` now does a fast model lookup first (blocked network / bad key / wrong model) then times a real answer (slow → raise timeout or lighter model via `CURAAI_GEMINI_MODEL`).
 - **Gemini 503** = "model overloaded", Google's side (not key/code), often clears in minutes. Retried 3×. PR #14: `CURAAI_GEMINI_FALLBACK_MODEL` backup model, used when the main one is still busy after retries (503/500/429/timeout); never on bad key. Setup check lists models the key can use and verifies the backup. Audit `model` field shows which answered.
 - **2026-11-04: switched to Groq.** "Too much traffic and not enough tokens" on the free Gemini key → team chose Groq (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY` from https://console.groq.com/keys, default model `openai/gpt-oss-20b`, low reasoning). Free tier ~30 req/min, 8K tokens/min, 200K tokens/day. Quota savers for Groq and Gemini: `CURAAI_AI_USE_FOR=reading` (only message reading uses the AI; full demo 30 → 16 calls), `CURAAI_AI_MAX_PER_MINUTE=8`, reply cache (reloads/Reset/Re-run free). Gemini + Groq share `http_transport.py` (retries, timeouts, backup model).
+- **Groq HTTP 403: Forbidden** on every call (first real Groq run, 2026-11-04) = Cloudflare blocking urllib's default `Python-urllib/3.x` User-Agent, not the key (bad key = 401). PR #16: every model request sends `User-Agent: CuraAI/0.1 (CS302 prototype)`; setup check no longer calls 403 a bad key.
 - A **307** in the server window (`GET / 307 Temporary Redirect`) is normal: `/` forwards to `/mockchart`.
 - **Stuck "Watching the In Basket…" fixed (PR #11)**: panel now restores each patient's status from the server on reload; MockChart **Reset test data** and a new **Re-run** button re-screen patients; panel says "Can't reach the CuraAI server" when it's down; server refuses to start with a plain message if port 8000 is taken (old server still open) or a setting is wrong.
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
@@ -141,7 +143,8 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #11 merged
 - [x] PR #12 merged
 - [x] PR #13 merged
-- [ ] Review + merge PR #15 (includes #14; run real `pytest` + `lint-imports` first)
+- [x] PR #14 + #15 merged
+- [ ] Merge PR #16 (User-Agent fix), then everyone `git pull` + restart
 - [ ] Each teammate: Groq key → `.env` (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY`) → `python -m curaai.app.check` (first real Groq run)
 - [ ] ADR-001 amendment: add Groq (synthetic data only; BAA before real PHI)
 - [ ] Pick a backup model from the setup check's list and add `CURAAI_GEMINI_FALLBACK_MODEL` to each `.env`
@@ -179,3 +182,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-11-02**: RJ's audit log showed Gemini `extract_symptoms` timing out at ~30 s. PR #13: 60 s adjustable timeout, one retry on timeout, clearer error wording, two-step Gemini check (fast model lookup, then a timed answer) with hints for blocked network vs slow model. 241 tests passing.
 - **2026-11-02 (later)**: PR #13 merged. Asked how to fix error 503: it's Gemini's "model overloaded" (Google-side). PR #14: optional backup model (`CURAAI_GEMINI_FALLBACK_MODEL`) after the main model's retries, 503-specific hint in the setup check, backup-model check that lists usable model names. 248 tests passing.
 - **2026-11-04**: Team hit free-tier limits ("too much traffic, not enough tokens") and chose Groq as the new API. PR #15: `GroqTransport`, shared `http_transport.py` (Gemini refactored onto it, behavior unchanged), quota savers (reading-only mode, 8/min pacing, reply cache), Groq setup check. 275 tests passing. Not yet run against real Groq (sandbox can't reach it).
+- **2026-11-04 (later)**: First real Groq run: server and key OK, but every Groq call returned a bare `HTTP 403: Forbidden`. Cause: urllib's default User-Agent blocked by Cloudflare. PR #16 sends a CuraAI User-Agent on all model requests, plus a clearer 403 hint. 277 tests passing.

@@ -145,6 +145,9 @@ or the other service.
    `model=groq (openai/gpt-oss-20b; reading messages only, max 8/min)`.
 
 In `audit.jsonl`, `model_gateway_call` lines for `extract_symptoms` show `"model": "openai/gpt-oss-20b"`.
+If every call fails with **`Groq HTTP 403: Forbidden`**, run `git pull`: versions before PR #16 sent
+Python's default `User-Agent`, which Groq's firewall (Cloudflare) blocks. A 403 with the latest code
+means the network is blocked (try a phone hotspot); a bad key is `401`.
 Groq's free tier (per model) is about 30 requests and 8K tokens per minute and 200K tokens per day.
 **Synthetic data only**, as with Gemini.
 

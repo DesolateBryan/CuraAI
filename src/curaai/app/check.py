@@ -183,8 +183,12 @@ def groq_checks(config: Config, poster: object, clock: Callable[[], float]) -> l
         if exc.timed_out or exc.status is None:
             hint = ("this computer can't reach Groq. Try another network (school and work Wi-Fi often "
                     "block it; a phone hotspot is a quick test), and check any VPN or firewall")
-        elif exc.status in (401, 403):
+        elif exc.status == 401:
             hint = "the key was refused. Make a new one at https://console.groq.com/keys and paste it into .env"
+        elif exc.status == 403:
+            hint = ("Groq's firewall blocked this computer's request (a bare 403 \"Forbidden\", not a key problem). "
+                    "Run git pull: older CuraAI versions were blocked for not naming themselves. If it still "
+                    "happens, the network is blocked: try a phone hotspot")
         else:
             hint = "Groq returned an error; try again in a minute"
         return [Check(FAIL, "Groq connection", f"{exc}. Next step: {hint}")]

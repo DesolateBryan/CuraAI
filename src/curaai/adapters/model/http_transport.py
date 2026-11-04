@@ -10,6 +10,9 @@ their own request shape and answer parsing.
   * backup model: if the main model is still busy after its retries (429/500/503 or a
     timeout), the same request goes to the backup model once. A bad key or any other error
     never switches models
+  * every request names itself (USER_AGENT). Without it urllib sends "Python-urllib/3.x",
+    which Cloudflare (in front of Groq's API) blocks as a bot: a bare HTTP 403 "Forbidden"
+    on every call, with a valid key
   * standard library only (urllib), so no extra package to install
 """
 
@@ -23,6 +26,7 @@ from typing import Protocol
 from curaai.adapters.model.gateway import VendorReply
 
 DEFAULT_TIMEOUT_S = 60.0                 # per request
+USER_AGENT = "CuraAI/0.1 (CS302 prototype)"   # never urllib's default; see the module docstring
 RETRYABLE = frozenset({429, 500, 503})   # too many requests, server error, overloaded
 MAX_ATTEMPTS = 3
 BACKOFF_S = (4.0, 10.0)                  # used when the service doesn't say how long to wait
@@ -77,11 +81,13 @@ class UrllibJsonPoster:
 
     def post_json(self, url: str, headers: Mapping[str, str], body: Mapping, timeout_s: float) -> Mapping:
         request = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
-                                         headers={"Content-Type": "application/json", **headers})
+                                         headers={"Content-Type": "application/json", "User-Agent": USER_AGENT,
+                                                  **headers})
         return self._send(request, timeout_s)
 
     def get_json(self, url: str, headers: Mapping[str, str], timeout_s: float) -> Mapping:
-        return self._send(urllib.request.Request(url, method="GET", headers=dict(headers)), timeout_s)
+        return self._send(urllib.request.Request(url, method="GET", headers={"User-Agent": USER_AGENT, **headers}),
+                          timeout_s)
 
     def _send(self, request: urllib.request.Request, timeout_s: float) -> Mapping:
         name, error = self._service, self._error
