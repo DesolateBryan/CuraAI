@@ -90,11 +90,11 @@ def test_model_name_is_url_safe():
 
 
 # ---- through the real wiring ----------------------------------------------------------------------------
-def container(tmp, poster):
+def container(tmp, poster, **extra_env):
     config = Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "CURAAI_GEMINI_API_KEY": KEY,
                               "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "audit.jsonl"),
-                              "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
-    return build_container(config, gemini_poster=poster)
+                              "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00", **extra_env})
+    return build_container(config, gemini_poster=poster, model_sleep=lambda s: None)
 
 
 def first_message(pid):
@@ -105,7 +105,7 @@ def first_message(pid):
 def test_whitaker_end_to_end_through_gemini():
     with tempfile.TemporaryDirectory() as tmp:
         poster = FakePoster()
-        k = container(tmp, poster)
+        k = container(tmp, poster, CURAAI_AI_USE_FOR="all")      # every model step through Gemini
         text, sent = first_message("p2")
         r = k.controller.post_message({"message_id": "p2-0", "patient_id": "p2", "sent_at": sent, "text": text,
                                        "fhir_bundle": fhir_bundles()["p2"]})
@@ -206,7 +206,7 @@ def test_a_rate_limited_burst_still_ends_with_ai_on():
                                   "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "audit.jsonl"),
                                   "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
         poster = FlakyPoster(GeminiError("Gemini HTTP 429: quota", status=429, retry_after_s=0.0))
-        k = build_container(config, gemini_poster=poster)
+        k = build_container(config, gemini_poster=poster, model_sleep=lambda s: None)
         text, sent = first_message("p1")
         r = k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
                                        "fhir_bundle": fhir_bundles()["p1"]})
@@ -266,7 +266,7 @@ def test_default_timeout_is_longer_and_configurable():
                                   "CURAAI_GEMINI_TIMEOUT_S": "120", "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "a.jsonl"),
                                   "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
         assert config.gemini_timeout_s == 120.0
-        k = build_container(config, gemini_poster=Recorder())
+        k = build_container(config, gemini_poster=Recorder(), model_sleep=lambda s: None)
         text, sent = first_message("p1")
         k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
                                    "fhir_bundle": fhir_bundles()["p1"]})
@@ -360,13 +360,14 @@ def test_backup_is_wired_from_env_and_the_case_keeps_ai_on():
                                   "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
         assert config.gemini_fallback_model == "gemini-backup"
         quick_503 = lambda: GeminiError("Gemini HTTP 503: overloaded", status=503, retry_after_s=0.001)  # noqa: E731
-        k = build_container(config, gemini_poster=PerModelPoster({"gemini-3.8-flash": quick_503}))
+        k = build_container(config, gemini_poster=PerModelPoster({"gemini-3.8-flash": quick_503}), model_sleep=lambda s: None)
         text, sent = first_message("p1")
         r = k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
                                        "fhir_bundle": fhir_bundles()["p1"]})
         view = k.controller.get_review_json(r.body["case_id"]).body
         assert not any("AI screening was unavailable" in n for n in view["notices"])
-        calls = [e for e in read_audit_log(Path(tmp) / "audit.jsonl") if e.action == "model_gateway_call"]
+        calls = [e for e in read_audit_log(Path(tmp) / "audit.jsonl")
+                 if e.action == "model_gateway_call" and e.detail["port"] == "extract_symptoms"]
         assert calls and {e.detail["model"] for e in calls} == {"gemini-backup-001"}
 
 
