@@ -303,3 +303,78 @@ def test_model_lookup_is_a_get_with_the_key_in_a_header():
     assert gemini_model_info(KEY, "gemini-3.8-flash", g)["name"].endswith("flash")
     url, headers, timeout_s = g.args
     assert url.endswith("/models/gemini-3.8-flash") and headers == {"x-goog-api-key": KEY} and timeout_s == 15.0
+
+
+# ---- backup model: used when the main model stays overloaded (503) -------------------------------------
+from curaai.adapters.model.gemini_transport import gemini_text_models  # noqa: E402
+
+
+class PerModelPoster:
+    """Fails every request to the models listed in `down` with the given error; others answer."""
+
+    def __init__(self, down):
+        self.down, self.urls = down, []
+
+    def post_json(self, url, headers, body, timeout_s):
+        self.urls.append(url)
+        for model, error in self.down.items():
+            if f"/models/{model}:" in url:
+                raise error()
+        model = url.split("/models/")[1].split(":")[0]
+        return gemini_response(rules_answer(body["contents"][0]["parts"][0]["text"]), model=model + "-001")
+
+
+def overloaded():
+    return GeminiError("Gemini HTTP 503: The model is overloaded. Please try again later.", status=503)
+
+
+def test_overloaded_main_model_switches_to_the_backup():
+    waits = []
+    poster = PerModelPoster({"gemini-3.8-flash": overloaded})
+    reply = GeminiTransport(KEY, poster=poster, sleep=waits.append, fallback_model="gemini-backup").send(
+        "S", '{"items": [], "symptom_ids": []}', 300)
+    assert reply.model == "gemini-backup-001"
+    assert sum(":generateContent" in u and "3.8-flash" in u for u in poster.urls) == 3   # main retried first
+    assert poster.urls[-1].endswith("/models/gemini-backup:generateContent")
+
+
+def test_both_models_down_names_both_in_the_error():
+    poster = PerModelPoster({"gemini-3.8-flash": overloaded, "gemini-backup": overloaded})
+    with pytest.raises(GeminiError) as info:
+        GeminiTransport(KEY, poster=poster, sleep=lambda s: None, fallback_model="gemini-backup").send("S", "{}", 300)
+    assert "backup model gemini-backup" in str(info.value) and info.value.status == 503
+
+
+def test_a_bad_key_never_tries_the_backup():
+    poster = PerModelPoster({"gemini-3.8-flash": lambda: GeminiError("Gemini HTTP 400: API key not valid", status=400)})
+    with pytest.raises(GeminiError):
+        GeminiTransport(KEY, poster=poster, fallback_model="gemini-backup").send("S", "{}", 300)
+    assert len(poster.urls) == 1
+
+
+def test_backup_is_wired_from_env_and_the_case_keeps_ai_on():
+    with tempfile.TemporaryDirectory() as tmp:
+        config = Config.from_env({"CURAAI_MODEL_BACKEND": "gemini", "CURAAI_GEMINI_API_KEY": KEY,
+                                  "CURAAI_GEMINI_FALLBACK_MODEL": "gemini-backup",
+                                  "CURAAI_AUDIT_LOG_PATH": str(Path(tmp) / "audit.jsonl"),
+                                  "CURAAI_CLOCK_NOW": "2026-10-16T13:00:00-04:00"})
+        assert config.gemini_fallback_model == "gemini-backup"
+        quick_503 = lambda: GeminiError("Gemini HTTP 503: overloaded", status=503, retry_after_s=0.001)  # noqa: E731
+        k = build_container(config, gemini_poster=PerModelPoster({"gemini-3.8-flash": quick_503}))
+        text, sent = first_message("p1")
+        r = k.controller.post_message({"message_id": "p1-0", "patient_id": "p1", "sent_at": sent, "text": text,
+                                       "fhir_bundle": fhir_bundles()["p1"]})
+        view = k.controller.get_review_json(r.body["case_id"]).body
+        assert not any("AI screening was unavailable" in n for n in view["notices"])
+        calls = [e for e in read_audit_log(Path(tmp) / "audit.jsonl") if e.action == "model_gateway_call"]
+        assert calls and {e.detail["model"] for e in calls} == {"gemini-backup-001"}
+
+
+def test_text_model_list_keeps_only_generate_content_models():
+    class Getter:
+        def get_json(self, url, headers, timeout_s):
+            assert "/models?pageSize=" in url and headers == {"x-goog-api-key": KEY}
+            return {"models": [{"name": "models/b-flash", "supportedGenerationMethods": ["generateContent"]},
+                               {"name": "models/embed", "supportedGenerationMethods": ["embedContent"]},
+                               {"name": "models/a-flash-lite", "supportedGenerationMethods": ["generateContent"]}]}
+    assert gemini_text_models(KEY, Getter()) == ["a-flash-lite", "b-flash"]

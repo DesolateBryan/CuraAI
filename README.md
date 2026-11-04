@@ -101,6 +101,19 @@ The setup check tells the two possible causes apart:
 
 Each timeout is retried once automatically before the case falls back to the fixed chart pull.
 
+**`Gemini HTTP 503: The model is overloaded`** is Google's side: too many people are using that model
+right now. It is not your key or our code, and it often clears in a few minutes. CuraAI retries it 3 times;
+to keep the AI on when it lasts longer, set a **backup model** in `.env`:
+
+```
+CURAAI_GEMINI_FALLBACK_MODEL=<a second model name>
+```
+
+If the main model is still overloaded after its retries, the same request goes to the backup model.
+`python -m curaai.app.check` lists the model names your key can use and checks the backup exists; the
+audit log's `"model"` field shows which one answered. (Free-tier limits are per model, so a backup also
+helps with `429` limits.)
+
 ### Use a real AI model: Google Gemini
 
 1. Sign in at **https://aistudio.google.com/apikey** with a Google account and click **Create API key**.
@@ -112,7 +125,8 @@ Each timeout is retried once automatically before the case falls back to the fix
    ```
    `.env` is in `.gitignore`, so the key is never committed. Optional: `CURAAI_GEMINI_MODEL`
    (default `gemini-3.8-flash`), `CURAAI_GEMINI_THINKING_LEVEL` (default `low`) and
-   `CURAAI_GEMINI_TIMEOUT_S` (seconds to wait for each answer, default `60`).
+   `CURAAI_GEMINI_TIMEOUT_S` (seconds to wait for each answer, default `60`) and
+   `CURAAI_GEMINI_FALLBACK_MODEL` (a backup model used when the main one is overloaded; none by default).
 3. Run `python -m curaai.app.main`. The first line should say `model=gemini (gemini-3.8-flash)`.
 
 To check it is really Gemini: in `audit.jsonl`, the `model_gateway_call` lines show
@@ -245,6 +259,7 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
   - The gateway logs the model service's own error message (scrubbed of identifiers), not just the error type.
   - Gemini rate limits (429) and brief outages (500/503) are retried up to 3 times, honoring Google's retry delay (capped at 30 s). Free keys have a per-minute limit, and the demo sends six patients at once.
   - Each Gemini call waits up to 60 s (`CURAAI_GEMINI_TIMEOUT_S`); a timeout is retried once. Errors say whether Google answered with an error, never answered in time, or couldn't be reached. The setup check first looks up the model (no text generated, about 1 s) to separate a blocked network, bad key or wrong model name from a slow model, then times a tiny real answer.
+  - Optional backup model (`CURAAI_GEMINI_FALLBACK_MODEL`): if the main model is still busy after its retries (503/500/429/timeout), the request goes to the backup once. Bad keys and other errors never switch models.
   - Parsers normalize harmless style differences ("Cough", "chest pain", an ISO timestamp for a date, "true" as a string) before the core validator, which is still strict about values.
 - **`CURAAI_MODEL_BACKEND=none` is still available.** Every model call fails cleanly and the fixed chart pull runs from the message date (the ADR-011 fallback).
 - **The bridge resends after a server restart.** The server reports an instance id at `/api/health`; when it changes, the page forgets which messages it already sent. A normal reload still sends nothing twice.

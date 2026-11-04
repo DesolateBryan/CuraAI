@@ -26,9 +26,13 @@ class Poster:
         self.timeouts = []
 
     def get_json(self, url, headers, timeout_s):
+        if "pageSize" in url:                                       # model list for the backup hint
+            return {"models": [{"name": "models/gemini-9-flash-lite", "supportedGenerationMethods": ["generateContent"]}]}
         self.lookups += 1
         if self.lookup_error:
             raise self.lookup_error
+        if "missing-model" in url:
+            raise GeminiError("Gemini HTTP 404: not found", status=404)
         return {"name": "models/gemini-x"}
 
     def post_json(self, url, headers, body, timeout_s):
@@ -117,7 +121,7 @@ def test_a_slow_model_is_told_apart_from_a_blocked_network():
         slow = gemini_run(root, Poster(error=GeminiError("Gemini sent no answer within 60 s (timed out)", timed_out=True)))
         assert slow["Gemini connection"].status == OK
         assert slow["Gemini test call"].status == FAIL and "CURAAI_GEMINI_TIMEOUT_S" in slow["Gemini test call"].detail
-        limit = gemini_run(root, Poster(error=GeminiError("Gemini HTTP 429: quota", status=429)))
+        limit = gemini_run(root, Poster(error=GeminiError("Gemini HTTP 429: quota", status=429, retry_after_s=0.001)))
         assert "limit" in limit["Gemini test call"].detail
 
 
@@ -155,3 +159,21 @@ def test_missing_page_fails():
 
 def test_mask():
     assert mask("") == "NOT SET" and mask("abc") == "set" and mask("AIzaXYZ12345") == "set (ends in ...2345)"
+
+
+def test_overloaded_model_suggests_a_backup():
+    with tempfile.TemporaryDirectory() as tmp:
+        root = folder(tmp, "CURAAI_MODEL_BACKEND=gemini\nCURAAI_GEMINI_API_KEY=AIzaKEY0000\n")
+        c = gemini_run(root, Poster(error=GeminiError("Gemini HTTP 503: The model is overloaded.", status=503, retry_after_s=0.001)))
+        assert c["Gemini test call"].status == FAIL and "CURAAI_GEMINI_FALLBACK_MODEL" in c["Gemini test call"].detail
+        assert c["Gemini backup model"].status == WARN and "gemini-9-flash-lite" in c["Gemini backup model"].detail
+
+
+def test_backup_model_is_checked_when_set():
+    with tempfile.TemporaryDirectory() as tmp:
+        good = folder(tmp, "CURAAI_MODEL_BACKEND=gemini\nCURAAI_GEMINI_API_KEY=AIzaKEY0000\n"
+                           "CURAAI_GEMINI_FALLBACK_MODEL=gemini-9-flash-lite\n")
+        assert gemini_run(good, Poster())["Gemini backup model"].status == OK
+        (good / ".env").write_text("CURAAI_MODEL_BACKEND=gemini\nCURAAI_GEMINI_API_KEY=AIzaKEY0000\n"
+                                   "CURAAI_GEMINI_FALLBACK_MODEL=missing-model\n", encoding="utf-8")
+        assert gemini_run(good, Poster())["Gemini backup model"].status == FAIL
