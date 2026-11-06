@@ -20,7 +20,7 @@ def _imports(package: str) -> dict[str, set[str]]:
                 names |= {a.name for a in node.names}
             elif isinstance(node, ast.ImportFrom) and node.module and node.level == 0:
                 names.add(node.module)
-        found[str(path.relative_to(SRC))] = names
+        found[path.relative_to(SRC).as_posix()] = names
     return found
 
 
@@ -76,6 +76,6 @@ def test_only_main_imports_the_vendor_sdk_and_fastapi():
                    [node.module] if isinstance(node, ast.ImportFrom) and node.module else []
             for m in mods:
                 if m.split(".")[0] in ("boto3", "fastapi", "uvicorn"):
-                    hits.append((str(path.relative_to(SRC)), m.split(".")[0]))
+                    hits.append((path.relative_to(SRC).as_posix(), m.split(".")[0]))
     allowed = {("app/main.py", "boto3"), ("app/main.py", "uvicorn"), ("adapters/web/routers.py", "fastapi")}
     assert set(hits) <= allowed, set(hits) - allowed

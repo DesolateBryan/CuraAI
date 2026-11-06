@@ -175,7 +175,7 @@ def test_nothing_outside_main_constructs_an_adapter():
         for path in (SRC / ring).rglob("*.py"):
             made = _constructed_classes(path) & adapters
             if made:
-                offenders[str(path.relative_to(SRC))] = sorted(made)
+                offenders[path.relative_to(SRC).as_posix()] = sorted(made)
     assert offenders == {}
 
 
