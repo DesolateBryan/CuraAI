@@ -39,7 +39,9 @@ Meetings: Wednesdays right after class.
 - PR #14 (Gemini 503 "model overloaded": optional backup model): https://github.com/DesolateBryan/CuraAI/pull/14 (merged)
 - PR #15 (**Groq** backend + quota savers for free keys): https://github.com/DesolateBryan/CuraAI/pull/15 (merged)
 - PR #16 (fix Groq HTTP 403: send a CuraAI User-Agent): https://github.com/DesolateBryan/CuraAI/pull/16 (merged)
-- PR #17 (**M3 readiness**: HITL gate, run log, honest Main, no-live-model guard, README + demo script): https://github.com/DesolateBryan/CuraAI/pull/17 (**open**, targets `main`)
+- PR #17 (**M3 readiness**: HITL gate, run log, honest Main, no-live-model guard, README + demo script): https://github.com/DesolateBryan/CuraAI/pull/17 (merged)
+- PR #18 (`.env.example` reorganized: numbered sections, Groq API section filled in): https://github.com/DesolateBryan/CuraAI/pull/18 (**open**, targets `main`)
+- PR #19 (fix a test that failed only on Windows: path separators): https://github.com/DesolateBryan/CuraAI/pull/19 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -108,6 +110,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **2026-11-04: switched to Groq.** "Too much traffic and not enough tokens" on the free Gemini key → team chose Groq (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY` from https://console.groq.com/keys, default model `openai/gpt-oss-20b`, low reasoning). Free tier ~30 req/min, 8K tokens/min, 200K tokens/day. Quota savers for Groq and Gemini: `CURAAI_AI_USE_FOR=reading` (only message reading uses the AI; full demo 30 → 16 calls), `CURAAI_AI_MAX_PER_MINUTE=8`, reply cache (reloads/Reset/Re-run free). Gemini + Groq share `http_transport.py` (retries, timeouts, backup model).
 - **Groq HTTP 403: Forbidden** on every call (first real Groq run, 2026-11-04) = Cloudflare blocking urllib's default `Python-urllib/3.x` User-Agent, not the key (bad key = 401). PR #16: every model request sends `User-Agent: CuraAI/0.1 (CS302 prototype)`; setup check no longer calls 403 a bad key.
 - **M3 rubric (2026-11-06)** → PR #17. Where each requirement lives: README "CS302 M3 requirements" table. Run: clone → `pip install -e ".[web,dev]"` → `copy .env.example .env` → paste `CURAAI_GROQ_API_KEY` → `python -m curaai.app.check` → `pytest` → `python -m curaai.app.main`. Demo script: `docs/DEMO.md` (3 min). **HITL gate**: every review packet opens one; only `CURAAI_HITL_APPROVERS` (default `dr-demo`) can approve a reply (sent as "Reply approved by dr-demo") or return the case; others → `hitl_blocked`. **Run log**: `/runlog` (this server session) or `python -m curaai.app.runlog`. **Main honest**: governance config in Main (`CURAAI_MAX_MODEL_CALLS/_LOOKUPS/_FOLLOW_UPS/_CASE_COST_USD`, `CURAAI_FOLLOW_UP_TIMEOUT_HOURS`, `CURAAI_HITL_APPROVERS`); transports get their HTTP client from Main. **Tests**: `tests/conftest.py` blocks the network; guardrail-failure test = `test_guardrail_failure_prompt_injection_disables_ai_and_fixed_pull_still_runs`.
+- **Windows test failure** `test_only_main_imports_the_vendor_sdk_and_fastapi` (RJ, 2026-11-06): the test compared `str(path)` with `app/main.py`, but Windows paths use backslashes. Test bug, not a code bug. PR #19 uses `.as_posix()`. The `StarletteDeprecationWarning` about httpx in the same run is harmless.
 - A **307** in the server window (`GET / 307 Temporary Redirect`) is normal: `/` forwards to `/mockchart`.
 - **Stuck "Watching the In Basket…" fixed (PR #11)**: panel now restores each patient's status from the server on reload; MockChart **Reset test data** and a new **Re-run** button re-screen patients; panel says "Can't reach the CuraAI server" when it's down; server refuses to start with a plain message if port 8000 is taken (old server still open) or a setting is wrong.
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
@@ -147,7 +150,9 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #13 merged
 - [x] PR #14 + #15 merged
 - [x] PR #16 merged
-- [ ] Merge PR #17 (M3 readiness), everyone `git pull`
+- [x] PR #17 merged
+- [ ] Merge PR #19 (Windows test fix)
+- [ ] Merge PR #18 (.env.example sections), then everyone recopies `.env` and pastes their Groq key back
 - [ ] Record the 3-minute demo (or rehearse it live) with Groq, following `docs/DEMO.md`
 - [ ] Each teammate: `.env` from the new `.env.example` (now defaults to Groq + governance settings)
 - [ ] Each teammate: Groq key → `.env` (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY`) → `python -m curaai.app.check` (first real Groq run)
@@ -189,3 +194,5 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-11-04**: Team hit free-tier limits ("too much traffic, not enough tokens") and chose Groq as the new API. PR #15: `GroqTransport`, shared `http_transport.py` (Gemini refactored onto it, behavior unchanged), quota savers (reading-only mode, 8/min pacing, reply cache), Groq setup check. 275 tests passing. Not yet run against real Groq (sandbox can't reach it).
 - **2026-11-04 (later)**: First real Groq run: server and key OK, but every Groq call returned a bare `HTTP 403: Forbidden`. Cause: urllib's default User-Agent blocked by Cloudflare. PR #16 sends a CuraAI User-Agent on all model requests, plus a clearer 403 hint. 277 tests passing.
 - **2026-11-06**: Checked the repo against the five M3 requirements and the M2 Governance Appendix. Gaps: HITL gate only structural (nothing fired), no readable run log, default caps in Ring 2, transports building their own HTTP clients, no proof tests can't hit the network, README not grader-shaped. PR #17 closes all of them: HITL sign-off gate (domain rule + use case + review panel + bridge), run log, governance config in Main, network guard, README "Run it in 10 minutes" + requirements map + governance table, docs/DEMO.md. Ran real pytest + FastAPI for the first time (pip via proxy): 318 passed, 3/3 import contracts. Verified from a fresh GitHub clone (install 7 s) and walked the demo in Chromium (local reader, and Groq unreachable → off-ramp on every case, still gated).
+- **2026-11-06 (later)**: Asked to make the env file clearly show the Groq API can be used. PR #18: `.env.example` in numbered sections (1 model choice, 2 Groq API with every setting visible + key link + free-tier limits, 3 Gemini, 4 Bedrock, 5 AI usage limits, 6 governance, 7 demo/server). Same settings; parse-checked; 318 tests passing. Personal `.env` not reachable from the session (CuraAI folder not connected).
+- **2026-11-06 (later)**: RJ's Windows `pytest`: 317 passed, 1 failed (`test_only_main_imports_the_vendor_sdk_and_fastapi`), caused by backslash paths in the test's comparison. PR #19: `.as_posix()` in the dependency-rule and governance tests; checked against Windows-style paths; 318 passing.
