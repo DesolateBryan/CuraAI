@@ -23,3 +23,7 @@ class ExternalSourceUnavailable(ApplicationError):
 
 class RejectedInboundMessage(ApplicationError):
     """An inbound message failed the intake checks (e.g. it did not come from the patient)."""
+
+
+class UnknownCase(ApplicationError):
+    """No review packet (and so no HITL gate) exists for this case id."""

@@ -86,11 +86,11 @@ class GeminiTransport(HttpModelTransport):
     error = GeminiError
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, *, thinking_level: str | None = "low",
-                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
+                 poster: JsonPoster, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
                  sleep: Callable[[float], None] = time.sleep, fallback_model: str | None = None) -> None:
         if not api_key:
             raise ValueError("a Gemini API key is required")
-        super().__init__(model, fallback_model=fallback_model, poster=poster or UrllibJsonPoster(),
+        super().__init__(model, fallback_model=fallback_model, poster=poster,
                          timeout_s=timeout_s, sleep=sleep)
         self._key = api_key
         self._thinking = thinking_level

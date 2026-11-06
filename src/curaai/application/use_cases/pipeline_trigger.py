@@ -49,7 +49,8 @@ class PipelineTrigger:
     def __init__(self, store: ConversationStorePort, screen: ScreenSickMessage,
                  follow_up: RequestFollowUp, prefetch: PrefetchHistory,
                  assemble: AssembleReviewPacket, audit_log: AuditLogPort, clock: ClockPort,
-                 limits: CaseLimits = CaseLimits(), timeout: FollowUpTimeout = FollowUpTimeout()) -> None:
+                 *, limits: CaseLimits, timeout: FollowUpTimeout) -> None:
+        # Governance configuration (caps, timeout) has no default here: Main owns it.
         self._store = store
         self._screen = screen
         self._follow_up = follow_up

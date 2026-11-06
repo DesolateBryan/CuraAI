@@ -8,7 +8,11 @@
  *      /api/messages together with that patient's FHIR R4 bundle.
  *   2. Follow-up questions waiting in /api/outbox are posted into the patient's thread
  *      with MockEpic.send(), which makes MockChart's simulated patient reply.
- *   3. When a review is ready, a "CuraAI" panel offers to open it.
+ *   3. When a review is ready, a "CuraAI" panel offers to open it. The review page holds the
+ *      physician's sign-off (HITL gate); an approved reply arrives through the same outbox
+ *      (question_id "physician_reply") and is posted into the thread. MockChart's simulated
+ *      patient answers it, and that answer is an acknowledgement, not a new sick message,
+ *      so it is not sent to CuraAI.
  *   4. On every page load it asks the server what it already has for each patient, so a
  *      reload never shows an empty panel. MockChart's "Reset test data" button, and the
  *      panel's "Re-run" button, send the messages again. If the server can't be reached,
@@ -25,6 +29,8 @@
   const POLL_MS = 1500;
   const RETRY_MS = 3000;
   const status = {};                         // patient_id -> {outcome, review_url}
+  const PHYSICIAN_REPLY = "physician_reply";  // outbox kind for a physician-approved reply
+  const awaitingAck = new Set();             // patients whose next message answers a physician reply
   let server = "connecting";                 // "connecting" | "ok" | "down"
 
   const sent = (() => { try { return new Set(JSON.parse(localStorage.getItem(SENT_KEY)) || []); } catch (e) { return new Set(); } })();
@@ -59,8 +65,13 @@
       const res = await fetch("/api/outbox");
       if (res.ok) {
         for (const f of (await res.json()).follow_ups) {
-          setStatus(f.patient_id, { outcome: "follow_up_sent" });
-          api.send(f.patient_id, f.display_text);  // "Automated question from CuraAI: <catalog text>", as the backend sent it
+          if (f.question_id === PHYSICIAN_REPLY) {
+            awaitingAck.add(f.patient_id);
+            setStatus(f.patient_id, { ...status[f.patient_id], outcome: "reply_sent" });
+          } else {
+            setStatus(f.patient_id, { outcome: "follow_up_sent" });
+          }
+          api.send(f.patient_id, f.display_text);  // the label and text exactly as the backend sent them
         }
       }
     } catch (e) { /* backend restarting; try again next tick */ }
@@ -69,7 +80,9 @@
 
   // ---- panel (display only) -------------------------------------------------------------
   const LABELS = { sending: "Screening…", follow_up_sent: "Waiting for the patient's answer",
-                   packet_delivered: "Review ready", handed_off_incomplete: "Handed off (incomplete)", error: "Error" };
+                   packet_delivered: "Review ready, awaiting physician sign-off",
+                   handed_off_incomplete: "Handed off (incomplete), awaiting physician sign-off",
+                   reply_sent: "Physician reply sent", error: "Error" };
   const panel = document.createElement("div");
   panel.id = "curaai-panel";
   panel.style.cssText = "position:fixed;right:14px;bottom:14px;z-index:9999;width:300px;max-height:60vh;overflow:auto;" +
@@ -171,7 +184,10 @@
   }, true);
 
   render();
-  api.onPatientMessage((pid, m) => postMessage(pid, m));
+  api.onPatientMessage((pid, m) => {
+    if (awaitingAck.delete(pid)) { remember(messageId(pid, m)); return; }   // answer to the physician's reply
+    postMessage(pid, m);
+  });
   start();
   pollOutbox();
   window.CuraAIBridge = { status, postMessage, rerun };   // for tests and debugging

@@ -4,7 +4,7 @@ from curaai.application.dto.audit import AuditEvent
 from curaai.application.dto.conversation import AWAITING_PATIENT_VALUE, OPEN_STATE_VALUES, ConversationSnapshot
 from curaai.application.dto.drug import DrugQuery, DrugRecord
 from curaai.application.dto.ehr import ActiveMedicationQuery, ChartItemRecord, ChartQuery
-from curaai.application.dto.messaging import OutboundFollowUp
+from curaai.application.dto.messaging import OutboundFollowUp, PhysicianReply
 from curaai.application.dto.model import (
     ExtractionRequest, FlagMatch, FlagMatchRequest, FollowUpChoice, FollowUpRequest,
     ItemSelection, SelectionRequest, SymptomExtraction,
@@ -13,7 +13,8 @@ from curaai.application.dto.review import ReviewResponse
 from curaai.application.errors import ModelUnavailable
 from curaai.application.ports import (
     AuditLogPort, ClockPort, ConversationStorePort, DrugDbPort, EhrPort, ExtractSymptomsPort,
-    MatchFlagsPort, PatientMessagingPort, PickRelevantItemsPort, ReviewOutputPort, SelectFollowUpPort,
+    MatchFlagsPort, PatientMessagingPort, PhysicianReplyPort, PickRelevantItemsPort, ReviewGatePort,
+    ReviewOutputPort, SelectFollowUpPort,
 )
 
 
@@ -190,3 +191,24 @@ class ScriptedTransport:
         answer = self.answers.get(port, "{}")
         text = answer(data) if callable(answer) else answer
         return VendorReply(text=text, input_tokens=self.tokens[0], output_tokens=self.tokens[1], model="scripted")
+
+
+class FakePhysicianReplies(PhysicianReplyPort):
+    """Records approved replies. Held only by RecordPhysicianDecision, as in Main."""
+
+    def __init__(self) -> None:
+        self.sent: list[PhysicianReply] = []
+
+    def send_physician_reply(self, reply: PhysicianReply) -> None:
+        self.sent.append(reply)
+
+
+class FakeReviewGates(ReviewGatePort):
+    def __init__(self) -> None:
+        self.gates: dict = {}
+
+    def save(self, review) -> None:
+        self.gates[review.case_id] = review
+
+    def get(self, case_id: str):
+        return self.gates.get(case_id)

@@ -8,9 +8,11 @@ and reports, in plain words:
   * whether the settings are valid
   * whether port 8000 (or CURAAI_PORT) is free, or an old CuraAI server is still running
   * whether the MockChart page was found
-  * for Gemini: one tiny test call, so a wrong or expired key shows up here, not mid-demo
+  * for Groq or Gemini: a fast model lookup (network, key, model name), then one tiny
+    timed test call, so a wrong key or blocked network shows up here, not mid-demo
 
-Part of Ring 4 (it builds a transport the same way main.py does). Exit code 1 if anything failed.
+Part of Ring 4. It builds nothing itself: the HTTP client and transport come from
+main.py's builders, exactly as the server makes them. Exit code 1 if anything failed.
 """
 
 import importlib.util
@@ -21,12 +23,9 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from curaai.adapters.model.gemini_transport import (
-    GeminiError, GeminiTransport, UrllibJsonPoster, gemini_model_info,
-    gemini_text_models,
-)
-from curaai.adapters.model.groq_transport import GroqError, GroqTransport, groq_models, groq_poster
-from curaai.app.main import Config, load_env_file, port_in_use
+from curaai.adapters.model.gemini_transport import GeminiError, gemini_model_info, gemini_text_models
+from curaai.adapters.model.groq_transport import GroqError, groq_models
+from curaai.app.main import Config, build_http_poster, build_vendor_transport, load_env_file, port_in_use
 
 OK, WARN, FAIL = "ok", "warn", "fail"
 
@@ -89,9 +88,9 @@ def run_checks(env_file: Path, environ: Mapping[str, str], *, cwd: Path,
         checks.append(Check(OK, "port", f"{config.host}:{config.port} is free"))
 
     if config.model_backend == "gemini":
-        checks.extend(gemini_checks(config, gemini_poster or UrllibJsonPoster(), clock))
+        checks.extend(gemini_checks(config, gemini_poster or build_http_poster(config), clock))
     elif config.model_backend == "groq":
-        checks.extend(groq_checks(config, groq_http or groq_poster(), clock))
+        checks.extend(groq_checks(config, groq_http or build_http_poster(config), clock))
     elif config.model_backend == "bedrock":
         if importlib.util.find_spec("boto3") is not None:   # look, don't import: only main.py imports SDKs
             checks.append(Check(OK, "Bedrock", "boto3 installed; AWS credentials come from your AWS config"))
@@ -128,8 +127,7 @@ def gemini_checks(config: Config, poster: object, clock: Callable[[], float]) ->
 
     started = clock()
     try:
-        reply = GeminiTransport(key, model, thinking_level=config.gemini_thinking_level or None, poster=poster,
-                                timeout_s=config.gemini_timeout_s).send(
+        reply = build_vendor_transport(config, poster=poster).send(
             'Reply with exactly this JSON: {"ok": true}', '{"ping": true}', 20)
         took = clock() - started
         status = OK if took < config.gemini_timeout_s / 2 else WARN
@@ -203,8 +201,7 @@ def groq_checks(config: Config, poster: object, clock: Callable[[], float]) -> l
 
     started = clock()
     try:
-        reply = GroqTransport(key, model, reasoning_effort=config.groq_reasoning_effort or None, poster=poster,
-                              timeout_s=config.groq_timeout_s).send(
+        reply = build_vendor_transport(config, poster=poster).send(
             'Reply with exactly this JSON: {"ok": true}', '{"ping": true}', 20)
         took = clock() - started
         status = OK if took < config.groq_timeout_s / 2 else WARN

@@ -14,8 +14,11 @@ import threading
 from collections import defaultdict
 from dataclasses import dataclass
 
-from curaai.application.dto.messaging import OutboundFollowUp
+from curaai.application.dto.messaging import OutboundFollowUp, PhysicianReply
 from curaai.application.ports.messaging_port import PatientMessagingPort
+from curaai.application.ports.physician_reply_port import PhysicianReplyPort
+
+PHYSICIAN_REPLY_KIND = "physician_reply"   # OutboxItem.question_id for an approved reply (not a catalog id)
 
 
 def mockchart_display_text(follow_up: OutboundFollowUp) -> str:
@@ -56,3 +59,16 @@ class MockEpicMessagingAdapter(PatientMessagingPort):
     def send_follow_up(self, follow_up: OutboundFollowUp) -> None:
         self._outbox.add(OutboxItem(follow_up.patient_id, follow_up.question_id, follow_up.text,
                                     follow_up.sender_label, mockchart_display_text(follow_up)))
+
+
+class MockEpicPhysicianReplyAdapter(PhysicianReplyPort):
+    """PhysicianReplyPort for MockChart: an approved reply goes through the same outbox, marked
+    PHYSICIAN_REPLY_KIND so the bridge knows the patient's answer to it is not a new sick message.
+    Main gives this adapter only to RecordPhysicianDecision (Governance ADR 3)."""
+
+    def __init__(self, outbox: InMemoryOutbox) -> None:
+        self._outbox = outbox
+
+    def send_physician_reply(self, reply: PhysicianReply) -> None:
+        self._outbox.add(OutboxItem(reply.patient_id, PHYSICIAN_REPLY_KIND, reply.text, reply.sender_label,
+                                    f"{reply.sender_label}: {reply.text}"))

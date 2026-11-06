@@ -8,8 +8,10 @@ Imported only by app/main.py.
 Routes
     POST /api/messages               bridge posts a patient message + FHIR bundle
     GET  /api/outbox                 follow-up questions for the bridge to deliver
-    GET  /api/reviews/{case_id}      review as JSON
-    GET  /reviews/{case_id}          review as an HTML page (shown to the physician)
+    GET  /api/reviews/{case_id}      review as JSON, with the HITL gate's state
+    GET  /reviews/{case_id}          review as an HTML page (shown to the physician), with the sign-off panel
+    POST /api/reviews/{case_id}/decision   the physician approves (reply sent) or returns the case (HITL gate)
+    GET  /runlog                     the audit log as a readable run log, with metrics
     GET  /api/patients/{id}/review   latest case for a patient
     POST /api/sweep                  run the 24-hour timeout sweep now
     GET  /api/health
@@ -22,7 +24,7 @@ import contextlib
 import json
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from curaai.adapters.web.controller import WebController, WebResponse
@@ -32,6 +34,8 @@ from curaai.adapters.web.page import inject_bridge
 def _respond(r: WebResponse) -> Response:
     if r.media_type == "text/html":
         return HTMLResponse(r.body, status_code=r.status)
+    if r.media_type == "text/plain":
+        return PlainTextResponse(r.body, status_code=r.status)
     return JSONResponse(r.body, status_code=r.status)
 
 
@@ -67,6 +71,18 @@ def create_app(controller: WebController, *, page_html: str | None, bridge_js: s
     @app.get("/reviews/{case_id}")
     async def review_html(case_id: str) -> Response:
         return _respond(controller.get_review_html(case_id))
+
+    @app.post("/api/reviews/{case_id}/decision")
+    async def decision(case_id: str, request: Request) -> Response:
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            body = None
+        return _respond(await run_in_threadpool(controller.post_decision, case_id, body))
+
+    @app.get("/runlog")
+    async def run_log() -> Response:
+        return _respond(await run_in_threadpool(controller.get_run_log))
 
     @app.get("/api/patients/{patient_id}/review")
     async def latest_review(patient_id: str) -> Response:

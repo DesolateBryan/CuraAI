@@ -142,7 +142,8 @@ def test_html_view_smoke_renders_every_row_and_escapes_text():
     html = render_review_html(view)
     assert html.startswith("<!doctype html>")
     assert BANNER in html
-    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert html.count("<script>") == 1                          # only the page's own sign-off script
+    assert '<script>alert("x")' not in html and "&lt;script&gt;alert" in html
     for s in view.sections:
         assert f'data-key="{s.key}"' in html
     assert html.count("<tr>") == sum(len(s.rows) + 1 for s in view.sections)

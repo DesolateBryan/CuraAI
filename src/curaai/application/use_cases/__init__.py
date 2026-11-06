@@ -4,16 +4,18 @@
       -> ScreenSickMessage     extract symptoms / onset / trend, validate
       -> RequestFollowUp       ask only for what is missing (catalog question)
       -> PrefetchHistory       fixed 3-week chart pull + validated AI lookups
-      -> AssembleReviewPacket  build the packet and hand it to ReviewOutputPort
+      -> AssembleReviewPacket  build the packet, hand it to ReviewOutputPort, open the HITL gate
+    RecordPhysicianDecision    the physician approves (reply sent) or returns the case (nothing sent)
 """
 
 from curaai.application.use_cases.assemble_review_packet import AssembleReviewPacket
 from curaai.application.use_cases.pipeline_trigger import PipelineOutcome, PipelineTrigger, TriggerResult
+from curaai.application.use_cases.record_physician_decision import RecordPhysicianDecision
 from curaai.application.use_cases.prefetch_history import PrefetchHistory, PrefetchResult
 from curaai.application.use_cases.request_follow_up import RequestFollowUp
 from curaai.application.use_cases.screen_sick_message import ScreenSickMessage
 
 __all__ = [
     "AssembleReviewPacket", "PipelineOutcome", "PipelineTrigger", "PrefetchHistory",
-    "PrefetchResult", "RequestFollowUp", "ScreenSickMessage", "TriggerResult",
+    "PrefetchResult", "RecordPhysicianDecision", "RequestFollowUp", "ScreenSickMessage", "TriggerResult",
 ]

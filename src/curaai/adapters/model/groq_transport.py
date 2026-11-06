@@ -82,11 +82,11 @@ class GroqTransport(HttpModelTransport):
     error = GroqError
 
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, *, reasoning_effort: str | None = "low",
-                 poster: JsonPoster | None = None, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
+                 poster: JsonPoster, base_url: str = BASE_URL, timeout_s: float = DEFAULT_TIMEOUT_S,
                  sleep: Callable[[float], None] = time.sleep, fallback_model: str | None = None) -> None:
         if not api_key:
             raise ValueError("a Groq API key is required")
-        super().__init__(model, fallback_model=fallback_model, poster=poster or groq_poster(),
+        super().__init__(model, fallback_model=fallback_model, poster=poster,
                          timeout_s=timeout_s, sleep=sleep)
         self._key = api_key
         self._effort = reasoning_effort

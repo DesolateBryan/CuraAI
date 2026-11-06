@@ -46,7 +46,7 @@ def audit_event_from_json(line: str) -> AuditEvent:
 
 
 def read_audit_log(path: str | Path) -> list[AuditEvent]:
-    """For tests and audit review. Never used by the running pipeline."""
+    """For tests, audit review and the readable run log. Never used by the pipeline itself."""
     with open(path, encoding="utf-8") as handle:
         return [audit_event_from_json(line) for line in handle if line.strip()]
 
