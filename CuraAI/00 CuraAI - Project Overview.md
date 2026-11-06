@@ -39,7 +39,8 @@ Meetings: Wednesdays right after class.
 - PR #14 (Gemini 503 "model overloaded": optional backup model): https://github.com/DesolateBryan/CuraAI/pull/14 (merged)
 - PR #15 (**Groq** backend + quota savers for free keys): https://github.com/DesolateBryan/CuraAI/pull/15 (merged)
 - PR #16 (fix Groq HTTP 403: send a CuraAI User-Agent): https://github.com/DesolateBryan/CuraAI/pull/16 (merged)
-- PR #17 (**M3 readiness**: HITL gate, run log, honest Main, no-live-model guard, README + demo script): https://github.com/DesolateBryan/CuraAI/pull/17 (**open**, targets `main`)
+- PR #17 (**M3 readiness**: HITL gate, run log, honest Main, no-live-model guard, README + demo script): https://github.com/DesolateBryan/CuraAI/pull/17 (merged)
+- PR #18 (`.env.example` reorganized: numbered sections, Groq API section filled in): https://github.com/DesolateBryan/CuraAI/pull/18 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -147,7 +148,8 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #13 merged
 - [x] PR #14 + #15 merged
 - [x] PR #16 merged
-- [ ] Merge PR #17 (M3 readiness), everyone `git pull`
+- [x] PR #17 merged
+- [ ] Merge PR #18 (.env.example sections), then everyone recopies `.env` and pastes their Groq key back
 - [ ] Record the 3-minute demo (or rehearse it live) with Groq, following `docs/DEMO.md`
 - [ ] Each teammate: `.env` from the new `.env.example` (now defaults to Groq + governance settings)
 - [ ] Each teammate: Groq key → `.env` (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY`) → `python -m curaai.app.check` (first real Groq run)
@@ -189,3 +191,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-11-04**: Team hit free-tier limits ("too much traffic, not enough tokens") and chose Groq as the new API. PR #15: `GroqTransport`, shared `http_transport.py` (Gemini refactored onto it, behavior unchanged), quota savers (reading-only mode, 8/min pacing, reply cache), Groq setup check. 275 tests passing. Not yet run against real Groq (sandbox can't reach it).
 - **2026-11-04 (later)**: First real Groq run: server and key OK, but every Groq call returned a bare `HTTP 403: Forbidden`. Cause: urllib's default User-Agent blocked by Cloudflare. PR #16 sends a CuraAI User-Agent on all model requests, plus a clearer 403 hint. 277 tests passing.
 - **2026-11-06**: Checked the repo against the five M3 requirements and the M2 Governance Appendix. Gaps: HITL gate only structural (nothing fired), no readable run log, default caps in Ring 2, transports building their own HTTP clients, no proof tests can't hit the network, README not grader-shaped. PR #17 closes all of them: HITL sign-off gate (domain rule + use case + review panel + bridge), run log, governance config in Main, network guard, README "Run it in 10 minutes" + requirements map + governance table, docs/DEMO.md. Ran real pytest + FastAPI for the first time (pip via proxy): 318 passed, 3/3 import contracts. Verified from a fresh GitHub clone (install 7 s) and walked the demo in Chromium (local reader, and Groq unreachable → off-ramp on every case, still gated).
+- **2026-11-06 (later)**: Asked to make the env file clearly show the Groq API can be used. PR #18: `.env.example` in numbered sections (1 model choice, 2 Groq API with every setting visible + key link + free-tier limits, 3 Gemini, 4 Bedrock, 5 AI usage limits, 6 governance, 7 demo/server). Same settings; parse-checked; 318 tests passing. Personal `.env` not reachable from the session (CuraAI folder not connected).
