@@ -29,5 +29,15 @@ def test_routes_delegate_to_the_controller():
             assert "Verify in person" in client.get(f"/reviews/{case}").text
             assert client.post("/api/messages", content=b"not json").status_code == 400
             assert client.get("/api/outbox").json() == {"follow_ups": []}
+            assert client.get(f"/api/reviews/{case}").json()["physician_review"]["status"] == "awaiting_physician"
+            bad = client.post(f"/api/reviews/{case}/decision", json={"decision": "approve", "physician_id": "x",
+                                                                     "reply_text": "hi"})
+            assert bad.status_code == 403
+            ok = client.post(f"/api/reviews/{case}/decision", json={"decision": "approve", "physician_id": "dr-demo",
+                                                                    "reply_text": "Please come in Thursday."})
+            assert ok.status_code == 200 and client.get("/api/outbox").json()["follow_ups"][0]["question_id"] == "physician_reply"
+            assert client.post(f"/api/reviews/{case}/decision", content=b"x").status_code == 400
+            log = client.get("/runlog")
+            assert log.headers["content-type"].startswith("text/plain") and "HITL: dr-demo APPROVED" in log.text
             assert "curaai-bridge.js" in client.get("/mockchart").text
             assert client.get("/static/curaai-bridge.js").headers["content-type"].startswith("application/javascript")

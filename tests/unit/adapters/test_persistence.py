@@ -134,7 +134,7 @@ def test_pipeline_survives_a_follow_up_round_trip_on_real_store_and_audit_file()
         assert h.trigger.on_patient_message(reply).outcome is PipelineOutcome.PACKET_DELIVERED
 
         actions = [e.action for e in read_audit_log(path)]
-        assert actions[0] == "case_opened" and actions[-1] == "review_packet_delivered"
+        assert actions[0] == "case_opened" and actions[-2:] == ["review_packet_delivered", "hitl_gate_opened"]
         assert "follow_up_sent" in actions and "patient_reply_received" in actions
         raw = path.read_text(encoding="utf-8")
         assert "dizzy and kind of nauseous" not in raw            # patient text is not written to the audit log

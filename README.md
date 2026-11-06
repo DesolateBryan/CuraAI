@@ -13,51 +13,88 @@ The physician makes every clinical decision.
 
 ![Structure](docs/architecture/curaai_structure.png)
 
+## Run it in 10 minutes (clean machine)
+
+You need **Python 3.12 or newer** and **git**. Run every command from the cloned `CuraAI` folder.
+
+**1. Clone and install** (about 2 minutes)
+
+```powershell
+git clone https://github.com/DesolateBryan/CuraAI.git
+cd CuraAI
+python -m venv .venv
+.venv\Scripts\activate              # macOS/Linux: source .venv/bin/activate
+pip install -e ".[web,dev]"
+```
+
+**2. Configure the key** (about 2 minutes)
+
+```powershell
+copy .env.example .env               # macOS/Linux: cp .env.example .env
+```
+
+Get a free Groq key at **https://console.groq.com/keys** (Create API Key). Open `.env` and paste it:
+
+```
+CURAAI_GROQ_API_KEY=gsk_...
+```
+
+That is the only setting you must change. `.env` is git-ignored, so the key is never committed.
+No key? Set `CURAAI_MODEL_BACKEND=local` in `.env` to run everything with the built-in rule-based reader instead of the AI model.
+
+**3. Check, test, run** (about 3 minutes)
+
+```powershell
+python -m curaai.app.check           # every line should be [ OK ]; it tests the key with one tiny call
+pytest                               # the full suite: offline, fakes only, network blocked
+python -m curaai.app.main            # then open http://127.0.0.1:8000/mockchart
+```
+
+Then follow **[docs/DEMO.md](docs/DEMO.md)**, a 3-minute script: watch the six MockChart patients get
+screened, open a review, sign it off at the HITL gate, and read the run log at
+**http://127.0.0.1:8000/runlog**. Stop the server with Ctrl+C.
+
+## CS302 M3 requirements: where each one lives
+
+| Requirement | Where | How to see it |
+|---|---|---|
+| **1. Runnable repo** | This README, `.env.example`, `python -m curaai.app.check` | The three steps above |
+| **2. Primary use case end to end** | Patient message (MockChart, FHIR) → **Groq** extracts symptoms, onset and trend, and the validator accepts or rejects the answer → catalog follow-up if a detail is missing → 3-week chart pull and drug flags → physician review packet | [docs/DEMO.md](docs/DEMO.md) (3-minute script) |
+| **3. Tests through the Testing API** | `tests/compose.py` wires the real use cases to fakes. `tests/conftest.py` blocks the network, so no test can call a live model. Guardrail-failure test: `test_guardrail_failure_prompt_injection_disables_ai_and_fixed_pull_still_runs` (`tests/unit/application/test_pipeline.py`); `tests/unit/test_no_live_model.py` proves the block | `pytest` (all green), `lint-imports` (3 architecture contracts) |
+| **4. Governance, wired and visible** | **Observability wrapper:** `adapters/observability` (logged model ports, gateway audit, `format_run_log`). **HITL gate:** `domain/physician_review.py`, `RecordPhysicianDecision`, sign-off panel on every review | `/runlog` or `python -m curaai.app.runlog`; the **Awaiting physician sign-off** box on any review |
+| **5. Main, honest** | `src/curaai/app/main.py` creates every object that crosses a boundary, including the HTTP clients the model transports use, and owns the governance configuration (caps, timeout, budget, HITL approvers, AI pacing). Ring 2 has no default caps | `tests/unit/app/test_governance_wiring.py` (composition-root tests), `lint-imports` |
+
+## Governance (M2 Governance Appendix, running)
+
+| Governance ADR | What runs | Evidence |
+|---|---|---|
+| **1 Decision transparency** (steward Nicole Hood) | Every model call is logged with port, prompt version, model, tokens, cost, latency and raw output (`model_gateway_call`), then the validator's verdict (`model_output_accepted` / `model_output_rejected`) and the physician's decision (`hitl_decision`). Every review row shows its source reference. | `/runlog`; `test_every_model_request_is_audited_with_an_outcome` |
+| **2 Observability** (steward RJ Peck) | One audit log, created once in Main and shared by the logged model ports, the gateway, the cost guard and the use cases. The run log adds the per-100-case numbers: off-ramp rate, failed guardrails, follow-ups, timeouts, cost, latency, HITL counts. | `/runlog` summary; `case_metrics` tests |
+| **3 HITL gates** (steward Bryan Ponce) | Every delivered packet opens a gate (`hitl_gate_opened`). Only a physician on `CURAAI_HITL_APPROVERS` can approve a reply to the patient; anyone else is refused (`hitl_blocked`) and nothing is sent. The AI only asks catalog questions, and the reply port is held only by `RecordPhysicianDecision`. No port writes to the chart. | `tests/unit/application/test_hitl_gate.py`, `test_ports.py` |
+| **4 Tool least-privilege** (steward Downing Nightingale) | The EHR and drug ports are read-only: one patient, a 3-week window. The model sees only symptom text, ids and short labels. Injected or unknown ids are rejected. | `test_model_only_ever_sees_symptom_text_ids_and_short_labels`, guardrail tests |
+| **5 Cost control** (steward Nicole Hood) | `CostGuard` checks the per-case dollar cap and the daily budget before every call. Ring 2 enforces 12 AI calls, 5 lookups and 2 follow-ups per case. A tripped limit turns the AI off, and the fixed chart pull still runs. | `test_cost_guard_*`, `test_model_call_cap_*` |
+
 ## Status
 
-| Ring | Package | This pass |
+| Ring | Package | State |
 |---|---|---|
-| 1 Entities | `src/curaai/domain` | **Built and tested** |
-| 2 Use cases, ports, DTOs | `src/curaai/application` | **Built and tested** |
-| 3 Interface adapters | `src/curaai/adapters` | **Built and tested**: EHR (`MockEpicAdapter`), drug DB (`MockDrugAdapter`, `OpenFdaAdapter`), model (`ModelGateway`, Bedrock transport, `CostGuard`, four adapters), observability, presenter, persistence, web controller + FastAPI routes + page bridge |
-| 4 Frameworks, composition root | `src/curaai/app/main.py` | **Built**: `Config.from_env`, `build_container`, `build_app`, Uvicorn |
+| 1 Entities | `src/curaai/domain` | Built and tested (incl. the HITL gate rule, `PhysicianReview`) |
+| 2 Use cases, ports, DTOs | `src/curaai/application` | Built and tested (incl. `RecordPhysicianDecision`) |
+| 3 Interface adapters | `src/curaai/adapters` | Built and tested: EHR, drug DB, model (Groq, Gemini, Bedrock, local reader, gateway, cost guard, quota savers), observability + run log, presenters, persistence, web |
+| 4 Frameworks, composition root | `src/curaai/app` | `main.py` (composition root), `check.py` (setup check), `runlog.py` (run log) |
 
-## Quick start
+## About the demo
 
-Requires **Python 3.12+**. Rings 1–2 have no third-party dependencies.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-pytest                               # unit tests, all offline, fixed clock, fakes only
-lint-imports                         # Dependency Rule contracts (pyproject.toml)
-```
-
-No environment variables are needed for the tests. The FastAPI route test is skipped
-unless the `web` extra is installed (`pip install -e ".[dev,web]"`).
-
-## Run the demo with MockChart
-
-No cloud account is needed. By default CuraAI uses its **local reader**
-(`CURAAI_MODEL_BACKEND=local`), a rule-based stand-in for the AI model that runs on your machine.
-It reads each patient message (symptoms, when they started, getting better or worse), asks
-follow-up questions for anything missing, then pulls the 3-week chart window measured from
-the onset and flags medications whose known side effects match the symptoms.
-
-```bash
-pip install -e ".[web]"
-cp .env.example .env                 # Windows: copy .env.example .env
-python -m curaai.app.main
-```
-
-Then open **http://127.0.0.1:8000/mockchart**. The backend serves the team's MockChart
-page with a small bridge script added (the HTML file itself is never edited). The bridge:
+The backend serves the team's MockChart page at `/mockchart` with a small bridge script added
+(the HTML file itself is never edited). The bridge:
 
 1. sends every patient message, with that patient's FHIR bundle, to CuraAI,
-2. delivers CuraAI's follow-up questions into the patient's thread, where MockChart's
-   simulated patient answers them,
+2. delivers CuraAI's follow-up questions, and physician-approved replies, into the patient's
+   thread, where MockChart's simulated patient answers them,
 3. shows a **CuraAI** panel (bottom right) with an **Open review** button per patient.
+
+With `CURAAI_MODEL_BACKEND=local` (the default when there is no `.env`), a rule-based reader stands
+in for the AI model, so the demo also runs with no account and no internet.
 
 ### If the demo isn't working
 
@@ -193,27 +230,29 @@ src/curaai/
     completeness.py       onset + trend present?
     lookback.py           onset - 21 days .. today
     follow_up_timeout.py  24 hours
-    case_budget.py        per-case caps: 6 model calls, 5 lookups, 2 follow-ups, $0.25
+    case_budget.py        per-case caps (values set by Main: 12 model calls, 5 lookups, 2 follow-ups, $0.25)
     sick_message.py, symptom_report.py, chart_item.py, drug_info.py
     conversation.py       case state machine
     timeline.py           TimelineEntry, ReviewPacket
+    physician_review.py   the HITL gate: awaiting physician -> approved (reply sent) / returned
   application/            Ring 2, imports only domain
     dto/                  one module per boundary (M2 "Crossing of Each Line")
     ports/                abstract interfaces this ring owns
     validation/           ModelOutputValidator
     mapping.py            DTO <-> entity mappers (pure)
     use_cases/            PipelineTrigger, ScreenSickMessage, RequestFollowUp,
-                          PrefetchHistory, AssembleReviewPacket
-  adapters/               Ring 3 stubs: model, ehr, drug, presenters, persistence,
-                          clock, observability, web
-  app/main.py             Ring 4 composition root stub
+                          PrefetchHistory, AssembleReviewPacket, RecordPhysicianDecision
+  adapters/               Ring 3: model, ehr, drug, presenters, persistence,
+                          clock, observability (incl. run_log.py), web
+  app/                    Ring 4: main.py (composition root), check.py, runlog.py
 tests/
-  compose.py              test composition root (fakes + fixed clock)
+  conftest.py             blocks the network for every test (no live model, ever)
+  compose.py              the Testing API: test composition root (fakes + fixed clock)
   fakes/                  fake EHR, drug DB, 4 model ports, messaging, stores, clock
   fixtures/mockchart.py   synthetic MockChart patients (no real PHI)
   fixtures/fhir/          FHIR bundles captured from the real MockChart page (+ capture.py)
   fixtures/openfda/       openFDA-shaped response with SYNTHETIC label text (+ capture.py for a real one)
-  unit/                   domain, application, dependency-rule tests
+  unit/                   domain, application, adapters, app (composition root, governance), dependency rule
 ```
 
 ## How a message flows
@@ -236,6 +275,10 @@ tests/
 5. **AssembleReviewPacket** builds the packet and passes a plain DTO to
    `ReviewOutputPort`. **ReviewPresenter** turns it into a `ReviewView` of
    display-ready strings. The view only loops, escapes and fills slots.
+6. The packet opens the case's **HITL gate**. On the review page the physician either
+   approves a reply (sent to the patient, labeled with who approved it) or returns the
+   case (nothing sent). **RecordPhysicianDecision** is the only code that can send that
+   reply, and only for a physician on `CURAAI_HITL_APPROVERS`.
 
 Example of the physician's screen (synthetic MockChart patient):
 [`docs/samples/ellison_review.html`](docs/samples/ellison_review.html)
@@ -316,7 +359,8 @@ These came from team Q&A on 2026-10-26, or from gaps in the briefs. Review them 
 
 All four rings are built. What's left before a pilot:
 
-- **Real model:** choose the Bedrock model id and get pricing; build the synthetic evaluation set and run it (ADR-001, ADR-016).
+- **Real model:** Groq (`openai/gpt-oss-20b`) runs the demo on synthetic data; for real PHI, pick a vendor under a BAA and record it in an ADR-001 amendment. Build the synthetic evaluation set and run it (ADR-001, ADR-016).
+- **HITL identity:** the sign-off takes a typed physician id checked against `CURAAI_HITL_APPROVERS`; a pilot needs real clinician sign-in (Epic SSO) instead.
 - **Name redaction:** add an NER step to the gateway before any real PHI (ADR-006).
 - **Persistence:** a database-backed conversation store so the 24-hour timeout survives restarts, and the Postgres audit store (ADR-017).
 - **Real Epic:** SMART on FHIR launch and an `EpicEhrAdapter` (ADR-017).

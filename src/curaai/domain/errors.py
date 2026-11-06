@@ -27,3 +27,11 @@ class BudgetExceeded(DomainError):
     def __init__(self, limit_name: str) -> None:
         super().__init__(f"per-case limit reached: {limit_name}")
         self.limit_name = limit_name
+
+
+class HitlRejected(DomainError):
+    """A physician sign-off was refused by the HITL gate (Governance ADR 3); nothing was sent."""
+
+    def __init__(self, reason: str, detail: str) -> None:
+        super().__init__(detail)
+        self.reason = reason

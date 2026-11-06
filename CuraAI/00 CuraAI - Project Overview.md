@@ -38,7 +38,8 @@ Meetings: Wednesdays right after class.
 - PR #13 (Gemini timeouts: 60 s adjustable wait, retry once, two-step setup check): https://github.com/DesolateBryan/CuraAI/pull/13 (merged)
 - PR #14 (Gemini 503 "model overloaded": optional backup model): https://github.com/DesolateBryan/CuraAI/pull/14 (merged)
 - PR #15 (**Groq** backend + quota savers for free keys): https://github.com/DesolateBryan/CuraAI/pull/15 (merged)
-- PR #16 (fix Groq HTTP 403: send a CuraAI User-Agent): https://github.com/DesolateBryan/CuraAI/pull/16 (**open**, targets `main`)
+- PR #16 (fix Groq HTTP 403: send a CuraAI User-Agent): https://github.com/DesolateBryan/CuraAI/pull/16 (merged)
+- PR #17 (**M3 readiness**: HITL gate, run log, honest Main, no-live-model guard, README + demo script): https://github.com/DesolateBryan/CuraAI/pull/17 (**open**, targets `main`)
 - Sample doctor's screen: `docs/samples/ellison_review.html`
 - This note also lives in the repo at `CuraAI/00 CuraAI - Project Overview.md`; each PR updates both copies
 - Structure chart: `docs/architecture/curaai_structure.png` in the repo
@@ -106,6 +107,7 @@ Python 3.12 · FastAPI + Pydantic (outer rings only) · FHIR R4 · ports-and-ada
 - **Gemini 503** = "model overloaded", Google's side (not key/code), often clears in minutes. Retried 3×. PR #14: `CURAAI_GEMINI_FALLBACK_MODEL` backup model, used when the main one is still busy after retries (503/500/429/timeout); never on bad key. Setup check lists models the key can use and verifies the backup. Audit `model` field shows which answered.
 - **2026-11-04: switched to Groq.** "Too much traffic and not enough tokens" on the free Gemini key → team chose Groq (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY` from https://console.groq.com/keys, default model `openai/gpt-oss-20b`, low reasoning). Free tier ~30 req/min, 8K tokens/min, 200K tokens/day. Quota savers for Groq and Gemini: `CURAAI_AI_USE_FOR=reading` (only message reading uses the AI; full demo 30 → 16 calls), `CURAAI_AI_MAX_PER_MINUTE=8`, reply cache (reloads/Reset/Re-run free). Gemini + Groq share `http_transport.py` (retries, timeouts, backup model).
 - **Groq HTTP 403: Forbidden** on every call (first real Groq run, 2026-11-04) = Cloudflare blocking urllib's default `Python-urllib/3.x` User-Agent, not the key (bad key = 401). PR #16: every model request sends `User-Agent: CuraAI/0.1 (CS302 prototype)`; setup check no longer calls 403 a bad key.
+- **M3 rubric (2026-11-06)** → PR #17. Where each requirement lives: README "CS302 M3 requirements" table. Run: clone → `pip install -e ".[web,dev]"` → `copy .env.example .env` → paste `CURAAI_GROQ_API_KEY` → `python -m curaai.app.check` → `pytest` → `python -m curaai.app.main`. Demo script: `docs/DEMO.md` (3 min). **HITL gate**: every review packet opens one; only `CURAAI_HITL_APPROVERS` (default `dr-demo`) can approve a reply (sent as "Reply approved by dr-demo") or return the case; others → `hitl_blocked`. **Run log**: `/runlog` (this server session) or `python -m curaai.app.runlog`. **Main honest**: governance config in Main (`CURAAI_MAX_MODEL_CALLS/_LOOKUPS/_FOLLOW_UPS/_CASE_COST_USD`, `CURAAI_FOLLOW_UP_TIMEOUT_HOURS`, `CURAAI_HITL_APPROVERS`); transports get their HTTP client from Main. **Tests**: `tests/conftest.py` blocks the network; guardrail-failure test = `test_guardrail_failure_prompt_injection_disables_ai_and_fixed_pull_still_runs`.
 - A **307** in the server window (`GET / 307 Temporary Redirect`) is normal: `/` forwards to `/mockchart`.
 - **Stuck "Watching the In Basket…" fixed (PR #11)**: panel now restores each patient's status from the server on reload; MockChart **Reset test data** and a new **Re-run** button re-screen patients; panel says "Can't reach the CuraAI server" when it's down; server refuses to start with a plain message if port 8000 is taken (old server still open) or a setting is wrong.
 - Bridge **resends after a server restart** (server instance id at `/api/health`); a normal reload still sends nothing twice.
@@ -144,7 +146,10 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - [x] PR #12 merged
 - [x] PR #13 merged
 - [x] PR #14 + #15 merged
-- [ ] Merge PR #16 (User-Agent fix), then everyone `git pull` + restart
+- [x] PR #16 merged
+- [ ] Merge PR #17 (M3 readiness), everyone `git pull`
+- [ ] Record the 3-minute demo (or rehearse it live) with Groq, following `docs/DEMO.md`
+- [ ] Each teammate: `.env` from the new `.env.example` (now defaults to Groq + governance settings)
 - [ ] Each teammate: Groq key → `.env` (`CURAAI_MODEL_BACKEND=groq`, `CURAAI_GROQ_API_KEY`) → `python -m curaai.app.check` (first real Groq run)
 - [ ] ADR-001 amendment: add Groq (synthetic data only; BAA before real PHI)
 - [ ] Pick a backup model from the setup check's list and add `CURAAI_GEMINI_FALLBACK_MODEL` to each `.env`
@@ -183,3 +188,4 @@ Record a real openFDA response (needs internet): `python tests/fixtures/openfda/
 - **2026-11-02 (later)**: PR #13 merged. Asked how to fix error 503: it's Gemini's "model overloaded" (Google-side). PR #14: optional backup model (`CURAAI_GEMINI_FALLBACK_MODEL`) after the main model's retries, 503-specific hint in the setup check, backup-model check that lists usable model names. 248 tests passing.
 - **2026-11-04**: Team hit free-tier limits ("too much traffic, not enough tokens") and chose Groq as the new API. PR #15: `GroqTransport`, shared `http_transport.py` (Gemini refactored onto it, behavior unchanged), quota savers (reading-only mode, 8/min pacing, reply cache), Groq setup check. 275 tests passing. Not yet run against real Groq (sandbox can't reach it).
 - **2026-11-04 (later)**: First real Groq run: server and key OK, but every Groq call returned a bare `HTTP 403: Forbidden`. Cause: urllib's default User-Agent blocked by Cloudflare. PR #16 sends a CuraAI User-Agent on all model requests, plus a clearer 403 hint. 277 tests passing.
+- **2026-11-06**: Checked the repo against the five M3 requirements and the M2 Governance Appendix. Gaps: HITL gate only structural (nothing fired), no readable run log, default caps in Ring 2, transports building their own HTTP clients, no proof tests can't hit the network, README not grader-shaped. PR #17 closes all of them: HITL sign-off gate (domain rule + use case + review panel + bridge), run log, governance config in Main, network guard, README "Run it in 10 minutes" + requirements map + governance table, docs/DEMO.md. Ran real pytest + FastAPI for the first time (pip via proxy): 318 passed, 3/3 import contracts. Verified from a fresh GitHub clone (install 7 s) and walked the demo in Chromium (local reader, and Groq unreachable → off-ramp on every case, still gated).

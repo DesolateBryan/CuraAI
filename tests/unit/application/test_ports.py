@@ -14,7 +14,9 @@ ALLOWED_METHODS = {
     "ExtractSymptomsPort": {"extract"},
     "MatchFlagsPort": {"match"},
     "PatientMessagingPort": {"send_follow_up"},
+    "PhysicianReplyPort": {"send_physician_reply"},     # HITL only: a physician-approved reply
     "PickRelevantItemsPort": {"pick"},
+    "ReviewGatePort": {"save", "get"},                 # CuraAI's own gate state, not the chart
     "ReviewOutputPort": {"present"},
     "SelectFollowUpPort": {"select"},
 }

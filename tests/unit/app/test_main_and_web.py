@@ -115,7 +115,7 @@ def test_no_model_backend_still_delivers_the_fixed_chart_pull():
         html = k.controller.get_review_html(r.body["case_id"])
         assert html.media_type == "text/html" and "Verify in person before prescribing" in html.body
         actions = [e.action for e in read_audit_log(Path(tmp) / "audit.jsonl")]
-        assert "model_gateway_error" in actions and actions[-1] == "review_packet_delivered"
+        assert "model_gateway_error" in actions and actions[-2:] == ["review_packet_delivered", "hitl_gate_opened"]
         assert k.page_html and "MockEpic" in k.page_html
 
 

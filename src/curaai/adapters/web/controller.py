@@ -19,11 +19,13 @@ from datetime import datetime
 from typing import Any, Protocol
 
 from curaai.application.dto.messaging import InboundMessage
-from curaai.application.errors import ExternalSourceUnavailable, RejectedInboundMessage
-from curaai.application.use_cases import PipelineTrigger
+from curaai.application.errors import ExternalSourceUnavailable, RejectedInboundMessage, UnknownCase
+from curaai.application.use_cases import PipelineTrigger, RecordPhysicianDecision
+from curaai.domain.errors import HitlRejected
 
 MAX_TEXT_CHARS = 5_000
 MAX_ID_CHARS = 128
+MAX_REPLY_BODY_CHARS = 4_000
 
 
 # ---- collaborators -------------------------------------------------------------------
@@ -60,8 +62,12 @@ class WebController:
     bundles: BundleSink
     outbox: Outbox
     reviews: ReviewStore
-    render_html: Callable[[Any], str]
+    render_html: Callable[[Any, Any], str]          # (review view, gate view) -> page
     to_json: Callable[[Any], dict]
+    decisions: RecordPhysicianDecision             # the HITL gate (Governance ADR 3)
+    gate_view: Callable[[Any], Any]                # PhysicianReview | None -> GateView
+    gate_to_json: Callable[[Any], dict]
+    run_log: Callable[[], str]                     # readable run log (Governance ADR 1 and 2)
     instance_id: str = ""            # new on every server start; the bridge uses it to resend after a restart
     _latest_case: dict[str, tuple[str, str]] = field(default_factory=dict)   # patient -> (case_id, outcome)
 
@@ -102,13 +108,38 @@ class WebController:
     # ---- GET /api/reviews/{case_id}, /reviews/{case_id}, /api/patients/{id}/review --------------
     def get_review_json(self, case_id: str) -> WebResponse:
         view = self.reviews.views.get(case_id)
-        return WebResponse(200, self.to_json(view)) if view else WebResponse(404, {"error": "no review for case"})
+        if view is None:
+            return WebResponse(404, {"error": "no review for case"})
+        return WebResponse(200, {**self.to_json(view),
+                                 "physician_review": self.gate_to_json(self.gate_view(self.decisions.gate(case_id)))})
 
     def get_review_html(self, case_id: str) -> WebResponse:
         view = self.reviews.views.get(case_id)
         if view is None:
             return WebResponse(404, "<p>No CuraAI review for this case yet.</p>", "text/html")
-        return WebResponse(200, self.render_html(view), "text/html")
+        return WebResponse(200, self.render_html(view, self.gate_view(self.decisions.gate(case_id))), "text/html")
+
+    # ---- POST /api/reviews/{case_id}/decision: the physician's sign-off (HITL gate) ------------
+    def post_decision(self, case_id: str, body: object) -> WebResponse:
+        if not isinstance(body, Mapping):
+            return WebResponse(400, {"error": "body must be a JSON object"})
+        decision, physician, reply = body.get("decision"), body.get("physician_id"), body.get("reply_text")
+        if not isinstance(decision, str) or not isinstance(physician, str) or len(physician) > MAX_ID_CHARS:
+            return WebResponse(400, {"error": "decision and physician_id are required strings"})
+        if reply is not None and (not isinstance(reply, str) or len(reply) > MAX_REPLY_BODY_CHARS):
+            return WebResponse(400, {"error": "reply_text must be a string"})
+        try:
+            review = self.decisions.execute(case_id, decision, physician, reply)
+        except UnknownCase:
+            return WebResponse(404, {"error": "no review packet for this case"})
+        except HitlRejected as exc:
+            status = 403 if exc.reason == "not_an_approver" else 409 if exc.reason == "already_decided" else 422
+            return WebResponse(status, {"error": str(exc), "reason": exc.reason})
+        return WebResponse(200, {"case_id": case_id, "physician_review": self.gate_to_json(self.gate_view(review))})
+
+    # ---- GET /runlog ----------------------------------------------------------------------------
+    def get_run_log(self) -> WebResponse:
+        return WebResponse(200, self.run_log(), "text/plain")
 
     def get_latest_for_patient(self, patient_id: str) -> WebResponse:
         latest = self._latest_case.get(patient_id)
